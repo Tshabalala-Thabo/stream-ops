@@ -225,20 +225,20 @@ export type RegisterPayload = {
 
 ### Phase 2: Shared App Shell
 
-- [ ] Create a global app shell with top navigation.
-- [ ] Add public nav links: `Videos`, `Browse`, and `Sign in`.
-- [ ] Add authenticated nav links: `Videos`, `Upload`, `Dashboard`, and user menu.
-- [ ] Show `Upload` CTA only when authenticated.
-- [ ] If a guest clicks an upload CTA, send them to `/login?redirectTo=/upload`.
-- [ ] Add a mobile drawer using the existing shadcn components.
-- [ ] Keep `/` as the public video library landing experience.
-- [ ] Keep `/theme` as an internal design reference page.
-- [ ] Use StreamOps global CSS tokens and gradient utilities from `web/app/globals.css`.
-- [ ] Use `bg-gradient-primary` only for high-intent actions.
-- [ ] Use `bg-gradient-brand` only for special sections or polished empty states.
+- [x] Create a global app shell with top navigation.
+- [x] Add public nav links: `Videos`, `Browse`, and `Sign in`.
+- [x] Add authenticated nav links: `Videos`, `Upload`, `Dashboard`, and user menu.
+- [x] Show `Upload` CTA only when authenticated.
+- [x] If a guest clicks an upload CTA, send them to `/login?redirectTo=/upload`.
+- [x] Add a mobile drawer using the existing shadcn components.
+- [x] Keep `/` as the public video library landing experience.
+- [x] Keep `/theme` as an internal design reference page.
+- [x] Use StreamOps global CSS tokens and gradient utilities from `web/app/globals.css`.
+- [x] Use `bg-gradient-primary` only for high-intent actions.
+- [x] Use `bg-gradient-brand` only for special sections or polished empty states.
 - [ ] Use `bg-gradient-processing` for active worker or upload progress states.
 - [ ] Use `bg-gradient-ready` for completion and playback-ready moments.
-- [ ] Use `bg-gradient-dark-glow` only for restrained dark preview or hero panels.
+- [x] Use `bg-gradient-dark-glow` only for restrained dark preview or hero panels.
 
 ### Phase 3: Frontend Domain Types And Dummy Data
 

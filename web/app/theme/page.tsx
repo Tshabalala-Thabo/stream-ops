@@ -1,4 +1,4 @@
-import { Activity, CheckCircle2, Cloud, Database, Gauge, Layers3, Palette, Play, RefreshCw, UploadCloud } from "lucide-react"
+import { Activity, CheckCircle2, Database, Gauge, Layers3, Palette, Play, RefreshCw, UploadCloud } from "lucide-react"
 
 import { ThemeToggle } from "@/components/theme-toggle"
 import { Badge } from "@/components/ui/badge"
