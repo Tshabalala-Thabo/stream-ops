@@ -1,0 +1,11 @@
+{
+    "mcpServers": {
+        "laravel-boost": {
+            "command": "/Users/thabo/.config/herd-lite/bin/php",
+            "args": [
+                "/Users/thabo/Documents/Software_development/stream-ops/stream-ops/artisan",
+                "boost:mcp"
+            ]
+        }
+    }
+}
