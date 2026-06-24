@@ -12,6 +12,7 @@ All videos are public. Guests can browse and watch. Any logged-in account can up
   - `NEXT_PUBLIC_API_URL=http://localhost:8000`
   - Fetch with `credentials: "include"`.
   - Call `/sanctum/csrf-cookie` before login/register/logout mutations.
+  - Send the decoded `XSRF-TOKEN` cookie back as the `X-XSRF-TOKEN` header when using native `fetch`.
   - Use `/api/user` to resolve the current authenticated user.
 - Configure Laravel env later to match:
   - `FRONTEND_URL=http://localhost:3000`
@@ -171,17 +172,18 @@ Use this checklist to implement the frontend in small, reviewable phases. Keep f
 
 ### Phase 1: Auth Foundation
 
-- [ ] Create `web/lib/api/client.ts` with a shared `apiFetch` helper.
-- [ ] Read `NEXT_PUBLIC_API_URL` from env and default local development to `http://localhost:8000`.
-- [ ] Always send Sanctum requests with `credentials: "include"`.
-- [ ] Add a `getCsrfCookie()` helper that calls `/sanctum/csrf-cookie` before auth mutations.
-- [ ] Add `getCurrentUser()` using `GET /api/user`.
-- [ ] Add `login()` using `POST /login`.
-- [ ] Add `register()` using `POST /register`.
-- [ ] Add `logout()` using `POST /logout`.
-- [ ] Do not implement email verification gating.
-- [ ] Do not block upload access based on `email_verified_at`.
-- [ ] Create frontend auth types that match the current Laravel `users` table:
+- [x] Create `web/lib/api/client.ts` with a shared `apiFetch` helper.
+- [x] Read `NEXT_PUBLIC_API_URL` from env and default local development to `http://localhost:8000`.
+- [x] Always send Sanctum requests with `credentials: "include"`.
+- [x] Add a `getCsrfCookie()` helper that calls `/sanctum/csrf-cookie` before auth mutations.
+- [x] Send the decoded `XSRF-TOKEN` cookie as the `X-XSRF-TOKEN` header for Sanctum CSRF protection.
+- [x] Add `getCurrentUser()` using `GET /api/user`.
+- [x] Add `login()` using `POST /login`.
+- [x] Add `register()` using `POST /register`.
+- [x] Add `logout()` using `POST /logout`.
+- [x] Do not implement email verification gating.
+- [x] Do not block upload access based on `email_verified_at`.
+- [x] Create frontend auth types that match the current Laravel `users` table:
 
 ```ts
 export type User = {
@@ -207,18 +209,18 @@ export type RegisterPayload = {
 };
 ```
 
-- [ ] Create `AuthProvider` or equivalent session context for client-side auth state.
-- [ ] Load the current user once when the app shell mounts.
-- [ ] Expose `user`, `isAuthenticated`, `isLoadingUser`, `login`, `register`, and `logout`.
-- [ ] Make logout clear frontend auth state immediately after the API confirms success.
-- [ ] Add guest pages: `/login`, `/register`, `/forgot-password`, `/reset-password`.
-- [ ] Add authenticated route protection for `/dashboard`, `/dashboard/videos`, `/dashboard/videos/[videoId]`, `/upload`, and `/settings`.
-- [ ] Redirect guests trying to access creator routes to `/login`.
-- [ ] Preserve the intended destination with a `redirectTo` query param.
-- [ ] After login/register, redirect to `redirectTo` when present, otherwise `/`.
-- [ ] Redirect authenticated users away from `/login` and `/register`.
-- [ ] Add basic form-level and field-level error states.
-- [ ] Add loading states for login, register, current-user fetch, and logout.
+- [x] Create `AuthProvider` or equivalent session context for client-side auth state.
+- [x] Load the current user once when the app shell mounts.
+- [x] Expose `user`, `isAuthenticated`, `isLoadingUser`, `login`, `register`, and `logout`.
+- [x] Make logout clear frontend auth state immediately after the API confirms success.
+- [x] Add guest pages: `/login`, `/register`, `/forgot-password`, `/reset-password`.
+- [x] Add authenticated route protection for `/dashboard`, `/dashboard/videos`, `/dashboard/videos/[videoId]`, `/upload`, and `/settings`.
+- [x] Redirect guests trying to access creator routes to `/login`.
+- [x] Preserve the intended destination with a `redirectTo` query param.
+- [x] After login/register, redirect to `redirectTo` when present, otherwise `/`.
+- [x] Redirect authenticated users away from `/login` and `/register`.
+- [x] Add basic form-level and field-level error states.
+- [x] Add loading states for login, register, current-user fetch, and logout.
 - [ ] Add empty fallback UI for when the API is unavailable.
 
 ### Phase 2: Shared App Shell
@@ -428,16 +430,16 @@ export type VideoRendition = {
 
 - [ ] Guest can browse `/` and `/videos`.
 - [ ] Guest can view `/videos/[videoId]`.
-- [ ] Guest cannot access `/dashboard`, `/upload`, or `/settings`.
-- [ ] Authenticated user can access `/dashboard`, `/dashboard/videos`, `/upload`, and `/settings`.
-- [ ] Authenticated user can still browse all public videos.
+- [x] Guest cannot access `/dashboard`, `/upload`, or `/settings`.
+- [x] Authenticated user can access `/dashboard`, `/dashboard/videos`, `/upload`, and `/settings`.
+- [x] Authenticated user can still browse all public videos.
 - [ ] Login works without requiring email verification.
-- [ ] Register works without requiring email verification.
+- [x] Register works without requiring email verification.
 - [ ] Logout clears the frontend session.
 - [ ] All dummy video statuses render with correct labels and colors.
 - [ ] All dummy upload session statuses render with correct labels and colors.
 - [ ] All dummy processing run statuses render with correct labels and colors.
 - [ ] Ready videos show playback and rendition information.
 - [ ] HLS segments are never listed as individual records.
-- [ ] `npm run build` passes.
+- [x] `npm run build` passes.
 - [ ] Responsive review passes for mobile and desktop.

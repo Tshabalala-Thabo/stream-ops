@@ -3,6 +3,7 @@ import { Geist, Geist_Mono, IBM_Plex_Sans, Manrope } from "next/font/google";
 import "./globals.css";
 import { cn } from "@/lib/utils";
 import { ThemeProvider } from "@/components/theme-provider";
+import { AuthProvider } from "@/components/auth/auth-provider";
 
 const manropeHeading = Manrope({subsets:['latin'],variable:'--font-heading'});
 
@@ -41,7 +42,7 @@ export default function RootLayout({
           disableTransitionOnChange
           enableSystem={false}
         >
-          {children}
+          <AuthProvider>{children}</AuthProvider>
         </ThemeProvider>
       </body>
     </html>
