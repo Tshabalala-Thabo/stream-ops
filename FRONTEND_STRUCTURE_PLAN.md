@@ -242,13 +242,13 @@ export type RegisterPayload = {
 
 ### Phase 3: Frontend Domain Types And Dummy Data
 
-- [ ] Create `web/lib/types/domain.ts`.
-- [ ] Create dummy data in `web/lib/data/dummy-videos.ts`.
-- [ ] Keep dummy data field names aligned with planned API response casing, not raw database snake_case.
-- [ ] Include enough dummy records to cover every video status.
-- [ ] Use public URLs or placeholder paths for thumbnails and playback manifests.
-- [ ] Do not create dummy HLS segment records.
-- [ ] Represent HLS segments only through rendition playlist URLs and segment prefixes.
+- [x] Keep centralized domain types in `web/lib/types/index.ts` instead of creating a second `domain.ts` source.
+- [x] Create dummy data in `web/lib/data/dummy-videos.ts`.
+- [x] Keep dummy data field names aligned with planned API response casing, not raw database snake_case.
+- [x] Include enough dummy records to cover every video status.
+- [x] Use public URLs or placeholder paths for thumbnails and playback manifests.
+- [x] Do not create dummy HLS segment records.
+- [x] Represent HLS segments only through rendition playlist URLs and segment prefixes.
 
 Recommended frontend domain types:
 
@@ -351,69 +351,69 @@ export type VideoRendition = {
 };
 ```
 
-- [ ] Add dummy `Video` records for `draft`, `uploading`, `uploaded`, `queued`, `processing`, `ready`, and `failed`.
-- [ ] Add dummy `UploadSession` records for at least one active upload and one completed upload.
-- [ ] Add dummy `VideoProcessingRun` records for queued, running, completed, and failed states.
-- [ ] Add dummy `VideoRendition` records for `480p`, `720p`, and `1080p`.
-- [ ] Make dummy relationships coherent: `video.id` should match related `videoId` values.
-- [ ] Use the same owner/user shape across all dummy videos.
+- [x] Add dummy `Video` records for `draft`, `uploading`, `uploaded`, `queued`, `processing`, `ready`, and `failed`.
+- [x] Add dummy `UploadSession` records for at least one active upload and one completed upload.
+- [x] Add dummy `VideoProcessingRun` records for queued, running, completed, and failed states.
+- [x] Add dummy `VideoRendition` records for `480p`, `720p`, and `1080p`.
+- [x] Make dummy relationships coherent: `video.id` should match related `videoId` values.
+- [x] Use the same owner/user shape across all dummy videos.
 
 ### Phase 4: Public Video Pages With Dummy Data
 
-- [ ] Build `/` as the public video library landing page.
-- [ ] Build `/videos` as the full public browse/search page.
-- [ ] Build `/videos/[videoId]` as the public watch page.
-- [ ] Use dummy data for all video pages until backend endpoints exist.
-- [ ] Show only public-safe information on public pages.
-- [ ] Show video title, description, thumbnail, owner, duration, resolution, status, and updated date.
-- [ ] Show a playback preview/player area on ready videos.
-- [ ] Show manifest readiness on video detail pages.
-- [ ] Show rendition-level data, not segment-level data.
-- [ ] Add status filters for `ready`, `processing`, `queued`, and `failed`.
-- [ ] Add text search over title, description, owner name, and object key/path when available.
-- [ ] Add empty states for no videos and no search results.
-- [ ] Add not-found UI for unknown video IDs.
-- [ ] Add loading skeletons for video cards and video detail.
+- [x] Build `/` as the public video library landing page.
+- [x] Build `/videos` as the full public browse/search page.
+- [x] Build `/videos/[videoId]` as the public watch page.
+- [x] Use dummy data for all video pages until backend endpoints exist.
+- [x] Show only public-safe information on public pages.
+- [x] Show video title, description, thumbnail, owner, duration, resolution, status, and updated date.
+- [x] Show a playback preview/player area on ready videos.
+- [x] Show manifest readiness on video detail pages.
+- [x] Show rendition-level data, not segment-level data.
+- [x] Add status filters for `ready`, `processing`, `queued`, and `failed`.
+- [x] Add text search over title, description, owner name, and object key/path when available.
+- [x] Add empty states for no videos and no search results.
+- [x] Add not-found UI for unknown video IDs.
+- [x] Add loading skeletons for video cards and video detail.
 
 ### Phase 5: Creator Dashboard Pages With Dummy Data
 
-- [ ] Build `/dashboard` using dummy aggregates.
-- [ ] Show uploaded count, processing count, ready count, failed count, and active upload count.
-- [ ] Build `/dashboard/videos` as the authenticated user's video management table.
-- [ ] Build `/dashboard/videos/[videoId]` as creator video detail.
-- [ ] Show upload session details on creator video detail.
-- [ ] Show processing run details on creator video detail.
-- [ ] Show rendition details on creator video detail.
-- [ ] Show processing errors when `processingError` is present.
-- [ ] Add dummy retry buttons, but do not wire backend mutations yet.
-- [ ] Add dummy copy buttons for source path, manifest path, and playlist paths.
-- [ ] Keep creator pages route-protected even while data is dummy.
-- [ ] Use `bg-gradient-processing` for active pipeline states.
-- [ ] Use `bg-gradient-ready` for ready-state summary panels.
+- [x] Build `/dashboard` using dummy aggregates.
+- [x] Show uploaded count, processing count, ready count, failed count, and active upload count.
+- [x] Build `/dashboard/videos` as the authenticated user's video management table.
+- [x] Build `/dashboard/videos/[videoId]` as creator video detail.
+- [x] Show upload session details on creator video detail.
+- [x] Show processing run details on creator video detail.
+- [x] Show rendition details on creator video detail.
+- [x] Show processing errors when `processingError` is present.
+- [x] Add dummy retry buttons, but do not wire backend mutations yet.
+- [x] Add dummy copy buttons for source path, manifest path, and playlist paths.
+- [x] Keep creator pages route-protected even while data is dummy.
+- [x] Use `bg-gradient-processing` for active pipeline states.
+- [x] Use `bg-gradient-ready` for ready-state summary panels.
 
 ### Phase 6: Upload Page Skeleton With Dummy Flow
 
-- [ ] Build `/upload` as an authenticated-only page.
-- [ ] Add file selection/dropzone UI.
-- [ ] Show selected file metadata before upload starts.
-- [ ] Add a dummy multipart upload progress view.
-- [ ] Show part-level progress using dummy parts, but do not persist parts.
-- [ ] Show object storage destination details: provider, bucket/path/object key.
-- [ ] Show upload states: pending, active, completed, failed.
-- [ ] Show a dummy post-upload processing handoff state.
-- [ ] Do not implement real presigned URL upload yet.
-- [ ] Do not send file bytes to Laravel in this phase.
+- [x] Build `/upload` as an authenticated-only page.
+- [x] Add file selection/dropzone UI.
+- [x] Show selected file metadata before upload starts.
+- [x] Add a dummy multipart upload progress view.
+- [x] Show part-level progress using dummy parts, but do not persist parts.
+- [x] Show object storage destination details: provider, bucket/path/object key.
+- [x] Show upload states: pending, active, completed, failed.
+- [x] Show a dummy post-upload processing handoff state.
+- [x] Do not implement real presigned URL upload yet.
+- [x] Do not send file bytes to Laravel in this phase.
 
 ### Phase 7: Settings And Supporting Pages
 
-- [ ] Build `/settings` as an authenticated-only account settings placeholder.
-- [ ] Show current user name and email from auth state.
-- [ ] Add placeholder sections for profile, password, and storage preferences.
-- [ ] Keep profile update and password update buttons disabled or clearly marked as not wired.
-- [ ] Add consistent `EmptyState`, `ErrorState`, and `LoadingState` components.
-- [ ] Add shared `StatusChip` component for video, upload session, and processing run statuses.
-- [ ] Add shared `PipelineTimeline` component for upload/processing/playback state.
-- [ ] Add shared `RenditionList` component for rendition-level display.
+- [x] Build `/settings` as an authenticated-only account settings placeholder.
+- [x] Show current user name and email from auth state.
+- [x] Add placeholder sections for profile, password, and storage preferences.
+- [x] Keep profile update and password update buttons disabled or clearly marked as not wired.
+- [x] Add consistent `EmptyState`, `ErrorState`, and `LoadingState` components.
+- [x] Add shared `StatusChip` component for video, upload session, and processing run statuses.
+- [x] Add shared `PipelineTimeline` component for upload/processing/playback state.
+- [x] Add shared `RenditionList` component for rendition-level display.
 
 ### Phase 8: Backend Integration Swap-In
 
@@ -428,18 +428,18 @@ export type VideoRendition = {
 
 ### Phase 9: Acceptance Checklist
 
-- [ ] Guest can browse `/` and `/videos`.
-- [ ] Guest can view `/videos/[videoId]`.
+- [x] Guest can browse `/` and `/videos`.
+- [x] Guest can view `/videos/[videoId]`.
 - [x] Guest cannot access `/dashboard`, `/upload`, or `/settings`.
 - [x] Authenticated user can access `/dashboard`, `/dashboard/videos`, `/upload`, and `/settings`.
 - [x] Authenticated user can still browse all public videos.
 - [ ] Login works without requiring email verification.
 - [x] Register works without requiring email verification.
 - [ ] Logout clears the frontend session.
-- [ ] All dummy video statuses render with correct labels and colors.
-- [ ] All dummy upload session statuses render with correct labels and colors.
-- [ ] All dummy processing run statuses render with correct labels and colors.
-- [ ] Ready videos show playback and rendition information.
-- [ ] HLS segments are never listed as individual records.
+- [x] All dummy video statuses render with correct labels and colors.
+- [x] All dummy upload session statuses render with correct labels and colors.
+- [x] All dummy processing run statuses render with correct labels and colors.
+- [x] Ready videos show playback and rendition information.
+- [x] HLS segments are never listed as individual records.
 - [x] `npm run build` passes.
-- [ ] Responsive review passes for mobile and desktop.
+- [x] Responsive review passes for mobile and desktop.

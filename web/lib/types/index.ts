@@ -50,6 +50,23 @@ export type ProcessingRunStatus =
   | "failed"
   | "cancelled"
 
+export type VideoOwner = Pick<User, "id" | "name" | "email">
+
+export type UploadedPart = {
+  partNumber: number
+  etag: string
+  size: number
+}
+
+export type VideoProcessingMetadata = {
+  durationSeconds?: number
+  width?: number
+  height?: number
+  codec?: string
+  bitrate?: number
+  frameRate?: number
+}
+
 export type Video = {
   id: number | string
   userId: number
@@ -66,7 +83,7 @@ export type Video = {
   thumbnailPath: string | null
   thumbnailUrl: string | null
   processingError: string | null
-  owner: Pick<User, "id" | "name" | "email">
+  owner: VideoOwner
   createdAt: string
   updatedAt: string
 }
@@ -80,11 +97,7 @@ export type UploadSession = {
   status: UploadSessionStatus
   partSize: number
   totalParts: number
-  uploadedParts: Array<{
-    partNumber: number
-    etag: string
-    size: number
-  }>
+  uploadedParts: UploadedPart[]
   expiresAt: string | null
   createdAt: string
   updatedAt: string
@@ -97,14 +110,7 @@ export type VideoProcessingRun = {
   startedAt: string | null
   finishedAt: string | null
   error: string | null
-  metadata: {
-    durationSeconds?: number
-    width?: number
-    height?: number
-    codec?: string
-    bitrate?: number
-    frameRate?: number
-  } | null
+  metadata: VideoProcessingMetadata | null
   createdAt: string
   updatedAt: string
 }
