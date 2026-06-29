@@ -82,6 +82,11 @@ export type Video = {
   playbackManifestUrl: string | null
   thumbnailPath: string | null
   thumbnailUrl: string | null
+  previewSpritePath: string | null
+  previewSpriteUrl: string | null
+  previewTrackPath: string | null
+  previewTrackUrl: string | null
+  previewIntervalSeconds: number | null
   processingError: string | null
   owner: VideoOwner
   createdAt: string

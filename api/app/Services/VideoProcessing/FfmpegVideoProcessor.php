@@ -34,12 +34,21 @@ class FfmpegVideoProcessor
 
         $sourcePath = $workDirectory.'/source.'.pathinfo($video->source_path, PATHINFO_EXTENSION);
         $thumbnailLocalPath = $workDirectory.'/default.jpg';
+        $previewSpriteLocalPath = $workDirectory.'/storyboard.jpg';
+        $previewTrackLocalPath = $workDirectory.'/storyboard.vtt';
         $hlsDirectory = $workDirectory.'/hls';
 
         try {
             $this->copySourceToLocalPath($video, $sourcePath);
             $metadata = $this->probe($sourcePath);
             $this->generateThumbnail($sourcePath, $thumbnailLocalPath, $metadata['durationSeconds']);
+            $preview = $this->generatePreviewStoryboard(
+                $video,
+                $sourcePath,
+                $previewSpriteLocalPath,
+                $previewTrackLocalPath,
+                $metadata
+            );
             $hls = $this->generateHls($video, $sourcePath, $hlsDirectory, $metadata);
 
             $thumbnailPath = "videos/{$video->id}/thumbnails/default.jpg";
@@ -57,6 +66,9 @@ class FfmpegVideoProcessor
                 fclose($thumbnailStream);
             }
 
+            $this->storeGeneratedFile($video, $previewSpriteLocalPath, $preview['spritePath']);
+            $this->storeGeneratedFile($video, $previewTrackLocalPath, $preview['trackPath']);
+
             return new VideoProcessingResult(
                 durationSeconds: $metadata['durationSeconds'],
                 width: $metadata['width'],
@@ -66,11 +78,17 @@ class FfmpegVideoProcessor
                 frameRate: $metadata['frameRate'],
                 thumbnailPath: $thumbnailPath,
                 playbackManifestPath: $hls['masterManifestPath'],
+                previewSpritePath: $preview['spritePath'],
+                previewTrackPath: $preview['trackPath'],
+                previewIntervalSeconds: $preview['intervalSeconds'],
                 renditions: $hls['renditions'],
                 metadata: [
                     ...$metadata,
                     'renditions' => $hls['renditions'],
                     'playbackManifestPath' => $hls['masterManifestPath'],
+                    'previewSpritePath' => $preview['spritePath'],
+                    'previewTrackPath' => $preview['trackPath'],
+                    'previewIntervalSeconds' => $preview['intervalSeconds'],
                 ],
             );
         } finally {
@@ -176,6 +194,94 @@ class FfmpegVideoProcessor
         if (! $process->isSuccessful() || ! is_file($thumbnailPath)) {
             throw new RuntimeException(trim($process->getErrorOutput()) ?: 'ffmpeg could not generate a thumbnail.');
         }
+    }
+
+    /**
+     * @param  array{durationSeconds: int, width: int, height: int, codec: ?string, bitrate: ?int, frameRate: ?float, raw: array<string, mixed>}  $metadata
+     * @return array{spritePath: string, trackPath: string, intervalSeconds: int}
+     */
+    private function generatePreviewStoryboard(
+        Video $video,
+        string $sourcePath,
+        string $spritePath,
+        string $trackPath,
+        array $metadata
+    ): array {
+        $intervalSeconds = 10;
+        $columns = 5;
+        $thumbWidth = 160;
+        $thumbHeight = max(90, $this->scaledWidth($metadata['height'], $metadata['width'], $thumbWidth));
+        $cueCount = max(1, (int) ceil($metadata['durationSeconds'] / $intervalSeconds));
+        $rows = max(1, (int) ceil($cueCount / $columns));
+
+        $process = new Process([
+            (string) config('streamops.ffmpeg_path', 'ffmpeg'),
+            '-y',
+            '-i',
+            $sourcePath,
+            '-vf',
+            "fps=1/{$intervalSeconds},scale={$thumbWidth}:{$thumbHeight},tile={$columns}x{$rows}",
+            '-frames:v',
+            '1',
+            $spritePath,
+        ]);
+        $process->setTimeout((int) config('streamops.processing_timeout_seconds', 300));
+        $process->run();
+
+        if (! $process->isSuccessful() || ! is_file($spritePath)) {
+            throw new RuntimeException(trim($process->getErrorOutput()) ?: 'ffmpeg could not generate seek preview storyboard.');
+        }
+
+        File::put(
+            $trackPath,
+            $this->previewTrackContents(
+                $cueCount,
+                $intervalSeconds,
+                $metadata['durationSeconds'],
+                $columns,
+                $thumbWidth,
+                $thumbHeight
+            )
+        );
+
+        return [
+            'spritePath' => "videos/{$video->id}/previews/storyboard.jpg",
+            'trackPath' => "videos/{$video->id}/previews/storyboard.vtt",
+            'intervalSeconds' => $intervalSeconds,
+        ];
+    }
+
+    private function previewTrackContents(
+        int $cueCount,
+        int $intervalSeconds,
+        int $durationSeconds,
+        int $columns,
+        int $thumbWidth,
+        int $thumbHeight
+    ): string {
+        $lines = ['WEBVTT', ''];
+
+        for ($index = 0; $index < $cueCount; $index++) {
+            $startSeconds = $index * $intervalSeconds;
+            $endSeconds = min($durationSeconds, $startSeconds + $intervalSeconds);
+            $x = ($index % $columns) * $thumbWidth;
+            $y = intdiv($index, $columns) * $thumbHeight;
+
+            $lines[] = $this->vttTimestamp($startSeconds).' --> '.$this->vttTimestamp($endSeconds);
+            $lines[] = "storyboard.jpg#xywh={$x},{$y},{$thumbWidth},{$thumbHeight}";
+            $lines[] = '';
+        }
+
+        return implode("\n", $lines);
+    }
+
+    private function vttTimestamp(int $seconds): string
+    {
+        $hours = intdiv($seconds, 3600);
+        $minutes = intdiv($seconds % 3600, 60);
+        $remainingSeconds = $seconds % 60;
+
+        return sprintf('%02d:%02d:%02d.000', $hours, $minutes, $remainingSeconds);
     }
 
     /**
@@ -323,6 +429,23 @@ class FfmpegVideoProcessor
             } finally {
                 fclose($stream);
             }
+        }
+    }
+
+    private function storeGeneratedFile(Video $video, string $localPath, string $targetPath): void
+    {
+        $stream = fopen($localPath, 'rb');
+
+        if ($stream === false) {
+            throw new RuntimeException("Unable to read generated file {$targetPath}.");
+        }
+
+        try {
+            if (! Storage::disk($video->source_disk)->put($targetPath, $stream)) {
+                throw new RuntimeException("Unable to store generated file {$targetPath}.");
+            }
+        } finally {
+            fclose($stream);
         }
     }
 

@@ -47,13 +47,20 @@ class ProcessVideoTest extends TestCase
         $this->assertSame(1080, $video->height);
         $this->assertSame("videos/{$video->id}/thumbnails/default.jpg", $video->thumbnail_path);
         $this->assertSame("videos/{$video->id}/hls/master.m3u8", $video->playback_manifest_path);
+        $this->assertSame("videos/{$video->id}/previews/storyboard.jpg", $video->preview_sprite_path);
+        $this->assertSame("videos/{$video->id}/previews/storyboard.vtt", $video->preview_track_path);
+        $this->assertSame(10, $video->preview_interval_seconds);
         $this->assertNull($video->processing_error);
         Storage::disk('public')->assertExists($video->thumbnail_path);
         Storage::disk('public')->assertExists($video->playback_manifest_path);
+        Storage::disk('public')->assertExists($video->preview_sprite_path);
+        Storage::disk('public')->assertExists($video->preview_track_path);
         Storage::disk('public')->assertExists("videos/{$video->id}/hls/480p/index.m3u8");
         Storage::disk('public')->assertExists("videos/{$video->id}/hls/480p/segment_000.ts");
         Storage::disk('public')->assertExists("videos/{$video->id}/hls/720p/index.m3u8");
         Storage::disk('public')->assertExists("videos/{$video->id}/hls/1080p/index.m3u8");
+        $this->assertStringContainsString('WEBVTT', Storage::disk('public')->get($video->preview_track_path));
+        $this->assertStringContainsString('storyboard.jpg#xywh=', Storage::disk('public')->get($video->preview_track_path));
 
         $processingRun = $video->processingRuns()->firstOrFail();
         $this->assertSame(ProcessingRunStatus::Completed, $processingRun->status);
@@ -63,6 +70,9 @@ class ProcessVideoTest extends TestCase
         $this->assertSame('h264', $processingRun->metadata['codec']);
         $this->assertSame(29.97, $processingRun->metadata['frameRate']);
         $this->assertSame("videos/{$video->id}/hls/master.m3u8", $processingRun->metadata['playbackManifestPath']);
+        $this->assertSame("videos/{$video->id}/previews/storyboard.jpg", $processingRun->metadata['previewSpritePath']);
+        $this->assertSame("videos/{$video->id}/previews/storyboard.vtt", $processingRun->metadata['previewTrackPath']);
+        $this->assertSame(10, $processingRun->metadata['previewIntervalSeconds']);
         $this->assertCount(3, $processingRun->metadata['renditions']);
         $this->assertCount(1, $video->getMedia('thumbnails'));
         $this->assertCount(1, $video->getMedia('playback_manifests'));

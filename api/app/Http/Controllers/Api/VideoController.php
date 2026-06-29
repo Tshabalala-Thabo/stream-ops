@@ -136,6 +136,9 @@ class VideoController extends Controller
                 'height' => null,
                 'thumbnail_path' => null,
                 'playback_manifest_path' => null,
+                'preview_sprite_path' => null,
+                'preview_track_path' => null,
+                'preview_interval_seconds' => null,
             ]);
 
             ProcessVideo::dispatch($video->fresh());

@@ -64,6 +64,43 @@ class VideoApiTest extends TestCase
             ->assertJsonMissing(['segments' => []]);
     }
 
+    public function test_public_video_resource_returns_preview_urls_when_available(): void
+    {
+        Storage::fake('public');
+
+        $video = Video::factory()->ready()->create([
+            'source_disk' => 'public',
+            'preview_sprite_path' => 'videos/preview-video/previews/storyboard.jpg',
+            'preview_track_path' => 'videos/preview-video/previews/storyboard.vtt',
+            'preview_interval_seconds' => 10,
+        ]);
+
+        $this->getJson("/api/videos/{$video->id}")
+            ->assertOk()
+            ->assertJsonPath('data.previewSpritePath', 'videos/preview-video/previews/storyboard.jpg')
+            ->assertJsonPath('data.previewSpriteUrl', url('/api/media/videos/preview-video/previews/storyboard.jpg'))
+            ->assertJsonPath('data.previewTrackPath', 'videos/preview-video/previews/storyboard.vtt')
+            ->assertJsonPath('data.previewTrackUrl', url('/api/media/videos/preview-video/previews/storyboard.vtt'))
+            ->assertJsonPath('data.previewIntervalSeconds', 10);
+    }
+
+    public function test_public_video_resource_serializes_ready_videos_without_previews(): void
+    {
+        $video = Video::factory()->ready()->create([
+            'preview_sprite_path' => null,
+            'preview_track_path' => null,
+            'preview_interval_seconds' => null,
+        ]);
+
+        $this->getJson("/api/videos/{$video->id}")
+            ->assertOk()
+            ->assertJsonPath('data.previewSpritePath', null)
+            ->assertJsonPath('data.previewSpriteUrl', null)
+            ->assertJsonPath('data.previewTrackPath', null)
+            ->assertJsonPath('data.previewTrackUrl', null)
+            ->assertJsonPath('data.previewIntervalSeconds', null);
+    }
+
     public function test_authenticated_creator_can_view_their_non_ready_video_details(): void
     {
         $user = User::factory()->create();
@@ -143,6 +180,9 @@ class VideoApiTest extends TestCase
             'processing_error' => 'Previous worker timed out.',
             'thumbnail_path' => 'videos/retry-video/thumbnails/default.jpg',
             'playback_manifest_path' => 'videos/retry-video/hls/master.m3u8',
+            'preview_sprite_path' => 'videos/retry-video/previews/storyboard.jpg',
+            'preview_track_path' => 'videos/retry-video/previews/storyboard.vtt',
+            'preview_interval_seconds' => 10,
         ]);
         $processingRun = $video->processingRuns()->create([
             'status' => ProcessingRunStatus::Running,
@@ -160,7 +200,10 @@ class VideoApiTest extends TestCase
             ->assertJsonPath('data.id', $video->id)
             ->assertJsonPath('data.status', VideoStatus::Queued->value)
             ->assertJsonPath('data.processingError', null)
-            ->assertJsonPath('data.playbackManifestPath', null);
+            ->assertJsonPath('data.playbackManifestPath', null)
+            ->assertJsonPath('data.previewSpritePath', null)
+            ->assertJsonPath('data.previewTrackPath', null)
+            ->assertJsonPath('data.previewIntervalSeconds', null);
 
         $this->assertDatabaseHas('videos', [
             'id' => $video->id,
@@ -168,6 +211,9 @@ class VideoApiTest extends TestCase
             'processing_error' => null,
             'thumbnail_path' => null,
             'playback_manifest_path' => null,
+            'preview_sprite_path' => null,
+            'preview_track_path' => null,
+            'preview_interval_seconds' => null,
         ]);
         $this->assertDatabaseHas('video_processing_runs', [
             'id' => $processingRun->id,
@@ -227,10 +273,25 @@ class VideoApiTest extends TestCase
 
         $this->getJson("/api/videos/{$local->id}")
             ->assertOk()
-            ->assertJsonPath('data.thumbnailUrl', Storage::disk('public')->url('videos/local/thumbnails/default.jpg'));
+            ->assertJsonPath('data.thumbnailUrl', url('/api/media/videos/local/thumbnails/default.jpg'));
 
         $this->getJson("/api/videos/{$s3->id}")
             ->assertOk()
             ->assertJsonPath('data.thumbnailUrl', Storage::disk('s3')->url('videos/cloud/thumbnails/default.jpg'));
+    }
+
+    public function test_public_media_proxy_serves_local_public_disk_assets_with_cors_headers(): void
+    {
+        Storage::fake('public');
+        Storage::disk('public')->put('videos/local/hls/master.m3u8', '#EXTM3U');
+
+        $response = $this->withHeader('Origin', 'http://localhost:3000')
+            ->get('/api/media/videos/local/hls/master.m3u8');
+
+        $response
+            ->assertOk()
+            ->assertHeader('Access-Control-Allow-Origin', 'http://localhost:3000');
+
+        $this->assertSame('#EXTM3U', $response->streamedContent());
     }
 }

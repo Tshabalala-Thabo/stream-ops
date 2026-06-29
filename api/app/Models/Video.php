@@ -25,6 +25,9 @@ use Spatie\MediaLibrary\InteractsWithMedia;
     'source_path',
     'playback_manifest_path',
     'thumbnail_path',
+    'preview_sprite_path',
+    'preview_track_path',
+    'preview_interval_seconds',
     'processing_error',
 ])]
 class Video extends Model implements HasMedia
@@ -83,6 +86,7 @@ class Video extends Model implements HasMedia
             'duration_seconds' => 'integer',
             'width' => 'integer',
             'height' => 'integer',
+            'preview_interval_seconds' => 'integer',
         ];
     }
 }

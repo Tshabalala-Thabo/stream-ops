@@ -1,5 +1,6 @@
 <?php
 
+use App\Http\Controllers\Api\MediaAssetController;
 use App\Http\Controllers\Api\UploadController;
 use App\Http\Controllers\Api\VideoController;
 use Illuminate\Http\Request;
@@ -12,6 +13,7 @@ Route::middleware(['auth:sanctum'])->get('/user', function (Request $request) {
 Route::get('/videos', [VideoController::class, 'index']);
 Route::get('/videos/{video}', [VideoController::class, 'show']);
 Route::get('/videos/{video}/renditions', [VideoController::class, 'renditions']);
+Route::get('/media/{path}', [MediaAssetController::class, 'show'])->where('path', '.*');
 
 Route::middleware(['auth:sanctum'])->group(function (): void {
     Route::get('/me/videos', [VideoController::class, 'mine']);

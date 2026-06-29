@@ -2,9 +2,9 @@
 
 namespace App\Http\Resources;
 
+use App\Support\MediaUrl;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Facades\Storage;
 
 class VideoResource extends JsonResource
 {
@@ -27,9 +27,14 @@ class VideoResource extends JsonResource
             'sourceDisk' => $this->source_disk,
             'sourcePath' => $this->source_path,
             'playbackManifestPath' => $this->playback_manifest_path,
-            'playbackManifestUrl' => $this->storageUrl($this->playback_manifest_path),
+            'playbackManifestUrl' => MediaUrl::for($this->playback_manifest_path, $this->source_disk),
             'thumbnailPath' => $this->thumbnail_path,
-            'thumbnailUrl' => $this->storageUrl($this->thumbnail_path),
+            'thumbnailUrl' => MediaUrl::for($this->thumbnail_path, $this->source_disk),
+            'previewSpritePath' => $this->preview_sprite_path,
+            'previewSpriteUrl' => MediaUrl::for($this->preview_sprite_path, $this->source_disk),
+            'previewTrackPath' => $this->preview_track_path,
+            'previewTrackUrl' => MediaUrl::for($this->preview_track_path, $this->source_disk),
+            'previewIntervalSeconds' => $this->preview_interval_seconds,
             'processingError' => $this->processing_error,
             'owner' => [
                 'id' => $this->user->id,
@@ -39,14 +44,5 @@ class VideoResource extends JsonResource
             'createdAt' => $this->created_at?->toJSON(),
             'updatedAt' => $this->updated_at?->toJSON(),
         ];
-    }
-
-    private function storageUrl(?string $path): ?string
-    {
-        if ($path === null) {
-            return null;
-        }
-
-        return Storage::disk($this->source_disk ?? config('streamops.media_disk', 'public'))->url($path);
     }
 }

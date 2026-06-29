@@ -9,15 +9,30 @@ type HomePageProps = {
   }>
 }
 
+async function loadPublicCatalog(query: string) {
+  try {
+    return {
+      isUnavailable: false,
+      videos: await getPublicVideos(query),
+    }
+  } catch {
+    return {
+      isUnavailable: true,
+      videos: [],
+    }
+  }
+}
+
 export default async function Home({ searchParams }: HomePageProps) {
   const params = await searchParams
   const query = params.q ?? ""
+  const catalog = await loadPublicCatalog(query)
 
-  try {
-    const videos = await getPublicVideos(query)
-
-    return <PublicVideoCatalog query={query} videos={videos} />
-  } catch {
-    return <PublicVideoCatalog isUnavailable query={query} videos={[]} />
-  }
+  return (
+    <PublicVideoCatalog
+      isUnavailable={catalog.isUnavailable}
+      query={query}
+      videos={catalog.videos}
+    />
+  )
 }

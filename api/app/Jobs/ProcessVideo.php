@@ -67,6 +67,9 @@ class ProcessVideo implements ShouldBeUnique, ShouldQueue
                 'height' => $result->height,
                 'thumbnail_path' => $result->thumbnailPath,
                 'playback_manifest_path' => $result->playbackManifestPath,
+                'preview_sprite_path' => $result->previewSpritePath,
+                'preview_track_path' => $result->previewTrackPath,
+                'preview_interval_seconds' => $result->previewIntervalSeconds,
             ]);
 
             $this->catalogThumbnail();
@@ -80,6 +83,9 @@ class ProcessVideo implements ShouldBeUnique, ShouldQueue
                     ...$result->metadata,
                     'thumbnailPath' => $result->thumbnailPath,
                     'playbackManifestPath' => $result->playbackManifestPath,
+                    'previewSpritePath' => $result->previewSpritePath,
+                    'previewTrackPath' => $result->previewTrackPath,
+                    'previewIntervalSeconds' => $result->previewIntervalSeconds,
                     'note' => 'Metadata, thumbnail, and HLS playback generation completed.',
                 ],
             ]);

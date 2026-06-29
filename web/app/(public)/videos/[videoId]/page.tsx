@@ -1,10 +1,10 @@
-import { Play } from "lucide-react"
 import { notFound } from "next/navigation"
 
 import { PublicVideoCard } from "@/components/streamops/public-video-card"
-import { formatDuration } from "@/components/streamops/video-format"
+import { StreamOpsPlayer } from "@/components/streamops/streamops-player"
 import {
   getPublicVideo,
+  getPublicVideoRenditions,
   getRelatedPublicVideos,
 } from "@/lib/api/videos"
 
@@ -23,33 +23,13 @@ export default async function VideoDetailPage({ params }: VideoDetailPageProps) 
   }
 
   const relatedVideos = await getRelatedPublicVideos(video.id).catch(() => [])
+  const renditions = await getPublicVideoRenditions(video.id).catch(() => [])
 
   return (
     <main className="mx-auto w-full max-w-7xl px-4 py-6 text-foreground sm:px-6 lg:py-8">
       <section className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
         <div className="min-w-0">
-          <div className="relative aspect-video overflow-hidden rounded-lg bg-foreground text-background shadow-sm">
-            {video.thumbnailUrl && (
-              <div
-                aria-hidden="true"
-                className="absolute inset-0 bg-cover bg-center opacity-45"
-                style={{ backgroundImage: `url(${video.thumbnailUrl})` }}
-              />
-            )}
-            <div className="absolute inset-0 bg-black/35" />
-            <div className="relative grid size-full place-items-center">
-              <button
-                aria-label={`Play ${video.title}`}
-                className="grid size-16 place-items-center rounded-full bg-background text-foreground shadow-lg transition-transform hover:scale-105"
-                type="button"
-              >
-                <Play className="ml-1 size-7 fill-current" />
-              </button>
-            </div>
-            <span className="absolute bottom-3 right-3 rounded bg-black/78 px-2 py-1 font-mono text-xs font-medium text-white">
-              {formatDuration(video.durationSeconds)}
-            </span>
-          </div>
+          <StreamOpsPlayer renditions={renditions} video={video} />
 
           <div className="mt-5">
             <h1 className="font-heading text-2xl font-semibold sm:text-3xl">

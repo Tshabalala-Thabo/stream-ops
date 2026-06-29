@@ -2,9 +2,9 @@
 
 namespace App\Http\Resources;
 
+use App\Support\MediaUrl;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\JsonResource;
-use Illuminate\Support\Facades\Storage;
 
 class VideoRenditionResource extends JsonResource
 {
@@ -24,7 +24,7 @@ class VideoRenditionResource extends JsonResource
             'bitrate' => $this->bitrate,
             'codec' => $this->codec,
             'playlistPath' => $this->playlist_path,
-            'playlistUrl' => Storage::disk($this->video->source_disk ?? config('streamops.media_disk', 'public'))->url($this->playlist_path),
+            'playlistUrl' => MediaUrl::for($this->playlist_path, $this->video->source_disk ?? config('streamops.media_disk', 'public')),
             'segmentPrefix' => $this->segment_prefix,
             'createdAt' => $this->created_at?->toJSON(),
             'updatedAt' => $this->updated_at?->toJSON(),

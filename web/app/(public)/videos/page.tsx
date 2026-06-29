@@ -9,17 +9,31 @@ type VideosPageProps = {
   }>
 }
 
+async function loadPublicCatalog(query: string) {
+  try {
+    return {
+      isUnavailable: false,
+      videos: await getPublicVideos(query),
+    }
+  } catch {
+    return {
+      isUnavailable: true,
+      videos: [],
+    }
+  }
+}
+
 export default async function VideosPage({ searchParams }: VideosPageProps) {
   const params = await searchParams
   const query = params.q ?? ""
+  const catalog = await loadPublicCatalog(query)
 
-  try {
-    const videos = await getPublicVideos(query)
-
-    return <PublicVideoCatalog action="/videos" query={query} videos={videos} />
-  } catch {
-    return (
-      <PublicVideoCatalog action="/videos" isUnavailable query={query} videos={[]} />
-    )
-  }
+  return (
+    <PublicVideoCatalog
+      action="/videos"
+      isUnavailable={catalog.isUnavailable}
+      query={query}
+      videos={catalog.videos}
+    />
+  )
 }

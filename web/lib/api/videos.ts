@@ -36,6 +36,19 @@ export async function getPublicVideo(videoId: Video["id"]): Promise<Video> {
   return response.data
 }
 
+export async function getPublicVideoRenditions(
+  videoId: Video["id"]
+): Promise<VideoRendition[]> {
+  const response = await apiFetch<ApiResource<VideoRendition[]>>(
+    `/api/videos/${videoId}/renditions`,
+    {
+      cache: "no-store",
+    }
+  )
+
+  return response.data
+}
+
 export async function getRelatedPublicVideos(
   videoId: Video["id"]
 ): Promise<Video[]> {

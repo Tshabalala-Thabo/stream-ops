@@ -17,6 +17,9 @@ class VideoProcessingResult
         public readonly ?float $frameRate,
         public readonly string $thumbnailPath,
         public readonly string $playbackManifestPath,
+        public readonly string $previewSpritePath,
+        public readonly string $previewTrackPath,
+        public readonly int $previewIntervalSeconds,
         public readonly array $renditions,
         public readonly array $metadata,
     ) {}

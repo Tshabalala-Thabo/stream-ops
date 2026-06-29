@@ -31,6 +31,9 @@ class VideoFactory extends Factory
             'source_path' => null,
             'playback_manifest_path' => null,
             'thumbnail_path' => null,
+            'preview_sprite_path' => null,
+            'preview_track_path' => null,
+            'preview_interval_seconds' => null,
             'processing_error' => null,
         ];
     }
@@ -42,6 +45,9 @@ class VideoFactory extends Factory
             'source_path' => 'videos/ready-video/source/original.mp4',
             'playback_manifest_path' => 'videos/ready-video/hls/master.m3u8',
             'thumbnail_path' => 'videos/ready-video/thumbnails/default.jpg',
+            'preview_sprite_path' => 'videos/ready-video/previews/storyboard.jpg',
+            'preview_track_path' => 'videos/ready-video/previews/storyboard.vtt',
+            'preview_interval_seconds' => 10,
         ]);
     }
 
