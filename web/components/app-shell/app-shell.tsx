@@ -1,7 +1,6 @@
 "use client"
 
 import {
-  Activity,
   Clapperboard,
   LayoutDashboard,
   Library,
@@ -37,8 +36,7 @@ type NavItem = {
 }
 
 const publicNavItems: NavItem[] = [
-  { href: "/", label: "Videos", icon: Clapperboard },
-  { href: "/videos", label: "Browse", icon: Search },
+  { href: "/", label: "Browse", icon: Clapperboard },
 ]
 
 const creatorNavItems: NavItem[] = [
@@ -106,7 +104,7 @@ function MobileNavDrawer({ pathname }: { pathname: string }) {
         <SheetHeader className="border-b">
           <SheetTitle>StreamOps</SheetTitle>
           <SheetDescription>
-            Public video library and creator operations.
+            Watch videos, search the library, or sign in to upload.
           </SheetDescription>
         </SheetHeader>
 
@@ -121,14 +119,13 @@ function MobileNavDrawer({ pathname }: { pathname: string }) {
           ))}
         </nav>
 
-        <div className="mx-4 rounded-md border bg-gradient-dark-glow p-4 text-sm text-foreground">
+        <div className="mx-4 rounded-md border bg-surface-overlay p-4 text-sm text-foreground">
           <div className="flex items-center gap-2 font-medium">
-            <Activity className="size-4 text-brand-accent" />
-            Pipeline surface
+            <Search className="size-4 text-primary" />
+            Find something to watch
           </div>
           <p className="mt-2 text-muted-foreground">
-            Uploads, processing, and playback readiness stay visible from the
-            shell as the product grows.
+            Browse ready videos from the public library.
           </p>
         </div>
 
@@ -190,7 +187,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 StreamOps
               </span>
               <span className="block truncate font-mono text-[10px] uppercase text-muted-foreground">
-                Media control plane
+                Video library
               </span>
             </span>
           </Link>
@@ -210,7 +207,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           <div className="ml-auto hidden items-center gap-2 md:flex">
             <div className="mr-2 hidden items-center gap-2 rounded-md border bg-surface-overlay px-2.5 py-1.5 text-xs text-muted-foreground lg:flex">
               <span className="size-1.5 rounded-full bg-brand-accent" />
-              Public playback online
+              Ready to watch
             </div>
 
             <ThemeToggle />

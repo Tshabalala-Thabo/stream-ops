@@ -1,19 +1,12 @@
-import { AlertCircle, FileVideo, MonitorPlay } from "lucide-react"
+import { Play } from "lucide-react"
 import { notFound } from "next/navigation"
 
-import { PipelineTimeline } from "@/components/streamops/pipeline-timeline"
-import { RenditionList } from "@/components/streamops/rendition-list"
-import { StatusChip } from "@/components/streamops/status-chip"
+import { PublicVideoCard } from "@/components/streamops/public-video-card"
+import { formatDuration } from "@/components/streamops/video-format"
 import {
-  formatDuration,
-  formatResolution,
-  formatUpdatedAt,
-} from "@/components/streamops/video-format"
-import {
-  getDummyProcessingRunsForVideo,
-  getDummyRenditionsForVideo,
   getDummyVideoById,
-  getDummyVideos,
+  getPublicVideos,
+  getRelatedPublicVideos,
 } from "@/lib/data/dummy-videos"
 
 type VideoDetailPageProps = {
@@ -21,129 +14,76 @@ type VideoDetailPageProps = {
 }
 
 export function generateStaticParams() {
-  return getDummyVideos().map((video) => ({ videoId: video.id.toString() }))
+  return getPublicVideos().map((video) => ({ videoId: video.id.toString() }))
 }
 
 export default async function VideoDetailPage({ params }: VideoDetailPageProps) {
   const { videoId } = await params
   const video = getDummyVideoById(videoId)
 
-  if (!video) {
+  if (!video || video.status !== "ready" || !video.playbackManifestPath) {
     notFound()
   }
 
-  const renditions = getDummyRenditionsForVideo(video.id)
-  const latestRun = getDummyProcessingRunsForVideo(video.id)[0] ?? null
-  const isReady = video.status === "ready"
+  const relatedVideos = getRelatedPublicVideos(video.id)
 
   return (
-    <div className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
-      <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-        <section>
-          <div className="overflow-hidden rounded-lg border bg-surface">
-            <div className="grid aspect-video place-items-center bg-foreground text-background">
-              {isReady ? (
-                <div className="text-center">
-                  <MonitorPlay className="mx-auto size-12 text-brand-accent" />
-                  <p className="mt-4 font-heading text-xl font-semibold">
-                    Playback preview
-                  </p>
-                  <p className="mt-2 max-w-md text-sm text-background/70">
-                    The real HLS player will mount here once backend streaming
-                    endpoints are available.
-                  </p>
-                </div>
-              ) : (
-                <div className="text-center">
-                  <FileVideo className="mx-auto size-12 text-background/55" />
-                  <p className="mt-4 font-heading text-xl font-semibold">
-                    Playback pending
-                  </p>
-                  <p className="mt-2 text-sm text-background/70">
-                    Manifest is not ready for this status.
-                  </p>
-                </div>
-              )}
+    <main className="mx-auto w-full max-w-7xl px-4 py-6 text-foreground sm:px-6 lg:py-8">
+      <section className="grid gap-8 lg:grid-cols-[minmax(0,1fr)_320px]">
+        <div className="min-w-0">
+          <div className="relative aspect-video overflow-hidden rounded-lg bg-foreground text-background shadow-sm">
+            {video.thumbnailUrl && (
+              <div
+                aria-hidden="true"
+                className="absolute inset-0 bg-cover bg-center opacity-45"
+                style={{ backgroundImage: `url(${video.thumbnailUrl})` }}
+              />
+            )}
+            <div className="absolute inset-0 bg-black/35" />
+            <div className="relative grid size-full place-items-center">
+              <button
+                aria-label={`Play ${video.title}`}
+                className="grid size-16 place-items-center rounded-full bg-background text-foreground shadow-lg transition-transform hover:scale-105"
+                type="button"
+              >
+                <Play className="ml-1 size-7 fill-current" />
+              </button>
             </div>
-            <div className="p-5">
-              <div className="flex flex-wrap items-center gap-3">
-                <StatusChip status={video.status} />
-                <span className="font-mono text-xs text-muted-foreground">
-                  {formatResolution(video)}
-                </span>
-                <span className="font-mono text-xs text-muted-foreground">
-                  {formatDuration(video.durationSeconds)}
-                </span>
-              </div>
-              <h1 className="mt-4 font-heading text-3xl font-semibold">
-                {video.title}
-              </h1>
-              <p className="mt-3 max-w-3xl leading-7 text-muted-foreground">
+            <span className="absolute bottom-3 right-3 rounded bg-black/78 px-2 py-1 font-mono text-xs font-medium text-white">
+              {formatDuration(video.durationSeconds)}
+            </span>
+          </div>
+
+          <div className="mt-5">
+            <h1 className="font-heading text-2xl font-semibold sm:text-3xl">
+              {video.title}
+            </h1>
+            <p className="mt-2 text-sm font-medium text-muted-foreground">
+              {video.owner.name}
+            </p>
+            {video.description && (
+              <p className="mt-4 max-w-3xl rounded-lg bg-surface-overlay p-4 text-sm leading-6 text-foreground">
                 {video.description}
               </p>
-            </div>
+            )}
           </div>
+        </div>
 
-          <div className="mt-6">
-            <PipelineTimeline status={video.status} />
-          </div>
-          <div className="mt-6">
-            <RenditionList renditions={renditions} />
-          </div>
-        </section>
-
-        <aside className="space-y-4">
-          <section className="rounded-lg border bg-surface p-4">
-            <h2 className="font-heading text-sm font-semibold">Public metadata</h2>
-            <dl className="mt-4 grid gap-3 text-sm">
-              <div>
-                <dt className="text-muted-foreground">Owner</dt>
-                <dd className="font-medium">{video.owner.name}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Updated</dt>
-                <dd className="font-mono text-xs">{formatUpdatedAt(video.updatedAt)}</dd>
-              </div>
-              <div>
-                <dt className="text-muted-foreground">Manifest readiness</dt>
-                <dd className="font-mono text-xs">
-                  {video.playbackManifestPath ?? "pending"}
-                </dd>
-              </div>
-            </dl>
-          </section>
-
-          {video.processingError && (
-            <section className="rounded-lg border border-destructive-border bg-destructive-light p-4 text-destructive-dark">
-              <div className="flex gap-3">
-                <AlertCircle className="mt-0.5 size-4 shrink-0" />
-                <div>
-                  <h2 className="font-heading text-sm font-semibold">
-                    Processing issue
-                  </h2>
-                  <p className="mt-2 text-sm leading-6">{video.processingError}</p>
-                </div>
-              </div>
-            </section>
-          )}
-
-          <section className="rounded-lg border bg-surface p-4">
-            <h2 className="font-heading text-sm font-semibold">Latest run</h2>
-            {latestRun ? (
-              <div className="mt-3 space-y-2 text-sm">
-                <StatusChip status={latestRun.status} />
-                <p className="font-mono text-xs text-muted-foreground">
-                  {latestRun.id}
-                </p>
-              </div>
+        <aside className="min-w-0">
+          <h2 className="font-heading text-lg font-semibold">More to watch</h2>
+          <div className="mt-4 grid gap-6 sm:grid-cols-2 lg:grid-cols-1">
+            {relatedVideos.length > 0 ? (
+              relatedVideos.map((relatedVideo) => (
+                <PublicVideoCard key={relatedVideo.id} video={relatedVideo} />
+              ))
             ) : (
-              <p className="mt-3 text-sm text-muted-foreground">
-                No processing run has started.
+              <p className="rounded-lg bg-surface-overlay p-4 text-sm leading-6 text-muted-foreground">
+                More videos will appear here as they become ready to play.
               </p>
             )}
-          </section>
+          </div>
         </aside>
-      </div>
-    </div>
+      </section>
+    </main>
   )
 }

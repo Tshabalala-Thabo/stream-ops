@@ -142,8 +142,8 @@ export const dummyVideos = [
   {
     id: "vid-ready-006",
     userId: primaryOwner.id,
-    title: "Playback-ready launch recap",
-    description: "Ready video with master playlist and generated rendition records.",
+    title: "Launch recap",
+    description: "Highlights from the latest StreamOps demo release.",
     status: "ready",
     durationSeconds: 612,
     width: 1920,
@@ -331,6 +331,16 @@ export const dummyVideoRenditions = [
 
 export function getDummyVideos() {
   return dummyVideos
+}
+
+export function getPublicVideos() {
+  return dummyVideos.filter(
+    (video) => video.status === "ready" && Boolean(video.playbackManifestPath)
+  )
+}
+
+export function getRelatedPublicVideos(videoId: Video["id"]) {
+  return getPublicVideos().filter((video) => video.id !== videoId)
 }
 
 export function getDummyVideoById(videoId: Video["id"]) {

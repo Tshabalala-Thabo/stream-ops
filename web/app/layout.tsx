@@ -22,7 +22,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "StreamOps",
-  description: "Cloud media operations for uploads, processing, and playback.",
+  description: "Browse and watch public videos on StreamOps.",
 };
 
 export default function RootLayout({
