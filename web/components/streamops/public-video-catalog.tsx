@@ -1,6 +1,6 @@
 import { Search } from "lucide-react"
 
-import { EmptyState } from "@/components/streamops/state-panels"
+import { EmptyState, ErrorState } from "@/components/streamops/state-panels"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import type { Video } from "@/lib/types"
@@ -11,6 +11,7 @@ type PublicVideoCatalogProps = {
   videos: Video[]
   query?: string
   action?: string
+  isUnavailable?: boolean
 }
 
 function matchesPublicQuery(video: Video, query: string) {
@@ -30,6 +31,7 @@ export function PublicVideoCatalog({
   videos,
   query = "",
   action = "/",
+  isUnavailable = false,
 }: PublicVideoCatalogProps) {
   const trimmedQuery = query.trim()
   const filteredVideos = videos.filter((video) =>
@@ -78,7 +80,13 @@ export function PublicVideoCatalog({
         </div>
       </section>
 
-      {featuredVideo ? (
+      {isUnavailable ? (
+        <ErrorState
+          className="mt-8"
+          title="Browse is unavailable"
+          description="The video catalog could not be loaded right now. Refresh the page once the API is running."
+        />
+      ) : featuredVideo ? (
         <section className="mt-8">
           <PublicVideoCard video={featuredVideo} priority />
         </section>

@@ -1,5 +1,7 @@
 import { PublicVideoCatalog } from "@/components/streamops/public-video-catalog"
-import { getPublicVideos } from "@/lib/data/dummy-videos"
+import { getPublicVideos } from "@/lib/api/videos"
+
+export const dynamic = "force-dynamic"
 
 type HomePageProps = {
   searchParams: Promise<{
@@ -9,6 +11,13 @@ type HomePageProps = {
 
 export default async function Home({ searchParams }: HomePageProps) {
   const params = await searchParams
+  const query = params.q ?? ""
 
-  return <PublicVideoCatalog query={params.q} videos={getPublicVideos()} />
+  try {
+    const videos = await getPublicVideos(query)
+
+    return <PublicVideoCatalog query={query} videos={videos} />
+  } catch {
+    return <PublicVideoCatalog isUnavailable query={query} videos={[]} />
+  }
 }

@@ -16,6 +16,34 @@ export async function getMyVideos(): Promise<Video[]> {
   return response.data
 }
 
+export async function getPublicVideos(query?: string): Promise<Video[]> {
+  const search = query?.trim()
+  const path = search
+    ? `/api/videos?q=${encodeURIComponent(search)}`
+    : "/api/videos"
+  const response = await apiFetch<ApiResource<Video[]>>(path, {
+    cache: "no-store",
+  })
+
+  return response.data
+}
+
+export async function getPublicVideo(videoId: Video["id"]): Promise<Video> {
+  const response = await apiFetch<ApiResource<Video>>(`/api/videos/${videoId}`, {
+    cache: "no-store",
+  })
+
+  return response.data
+}
+
+export async function getRelatedPublicVideos(
+  videoId: Video["id"]
+): Promise<Video[]> {
+  const videos = await getPublicVideos()
+
+  return videos.filter((video) => video.id !== videoId)
+}
+
 export async function getMyVideo(videoId: Video["id"]): Promise<Video> {
   const response = await apiFetch<ApiResource<Video>>(`/api/me/videos/${videoId}`)
 

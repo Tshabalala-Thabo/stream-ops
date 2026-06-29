@@ -4,28 +4,25 @@ import { notFound } from "next/navigation"
 import { PublicVideoCard } from "@/components/streamops/public-video-card"
 import { formatDuration } from "@/components/streamops/video-format"
 import {
-  getDummyVideoById,
-  getPublicVideos,
+  getPublicVideo,
   getRelatedPublicVideos,
-} from "@/lib/data/dummy-videos"
+} from "@/lib/api/videos"
 
 type VideoDetailPageProps = {
   params: Promise<{ videoId: string }>
 }
 
-export function generateStaticParams() {
-  return getPublicVideos().map((video) => ({ videoId: video.id.toString() }))
-}
+export const dynamic = "force-dynamic"
 
 export default async function VideoDetailPage({ params }: VideoDetailPageProps) {
   const { videoId } = await params
-  const video = getDummyVideoById(videoId)
+  const video = await getPublicVideo(videoId).catch(() => null)
 
-  if (!video || video.status !== "ready" || !video.playbackManifestPath) {
+  if (!video) {
     notFound()
   }
 
-  const relatedVideos = getRelatedPublicVideos(video.id)
+  const relatedVideos = await getRelatedPublicVideos(video.id).catch(() => [])
 
   return (
     <main className="mx-auto w-full max-w-7xl px-4 py-6 text-foreground sm:px-6 lg:py-8">
