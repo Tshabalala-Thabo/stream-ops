@@ -86,43 +86,44 @@ Legend:
 
 - [x] Dispatch `ProcessVideo` after upload completion.
 - [x] Add a queueable processing job class.
-- [x] Create a placeholder `video_processing_runs` row from the job.
-- [x] Preserve a future FFmpeg integration point.
-- [~] Background processing pipeline exists as a skeleton only.
-- [~] Processing status tracking exists in tables, but not as a full lifecycle.
-- [ ] Move video from `queued` to `processing` when a worker starts.
-- [ ] Mark processing run `running`, `completed`, `failed`, or `cancelled`.
-- [ ] Store processing errors on failed runs.
-- [ ] Update `videos.processing_error` when processing fails.
+- [x] Create a `video_processing_runs` row from the job.
+- [x] Preserve FFmpeg processing integration point.
+- [x] Background processing pipeline exists for metadata, thumbnail, and HLS work.
+- [x] Processing status tracking exists for running, completed, and failed processing attempts.
+- [x] Move video from `queued` to `processing` when a worker starts.
+- [x] Mark processing run `running`, `completed`, or `failed`.
+- [x] Store processing errors on failed runs.
+- [x] Update `videos.processing_error` when processing fails.
 - [ ] Add retry controls for failed processing attempts.
 
 ## Phase 6: FFmpeg Metadata And Thumbnail Processing
 
-- [ ] Install or document FFmpeg runtime requirement.
-- [ ] Read source file from `videos.source_disk` and `videos.source_path`.
-- [ ] Extract duration.
-- [ ] Extract width and height.
-- [ ] Extract codec, bitrate, and frame rate metadata.
-- [ ] Store duration, width, and height on `videos`.
-- [ ] Store richer processing metadata on `video_processing_runs.metadata`.
-- [ ] Generate default thumbnail.
-- [ ] Store thumbnail at `videos/{video_id}/thumbnails/default.jpg`.
-- [ ] Update `videos.thumbnail_path`.
-- [ ] Catalog thumbnail in Spatie `thumbnails` collection.
+- [x] Add configurable FFmpeg and ffprobe binary paths.
+- [x] Read source file from `videos.source_disk` and `videos.source_path`.
+- [x] Extract duration.
+- [x] Extract width and height.
+- [x] Extract codec, bitrate, and frame rate metadata.
+- [x] Store duration, width, and height on `videos`.
+- [x] Store richer processing metadata on `video_processing_runs.metadata`.
+- [x] Generate default thumbnail.
+- [x] Store thumbnail at `videos/{video_id}/thumbnails/default.jpg`.
+- [x] Update `videos.thumbnail_path`.
+- [x] Catalog thumbnail in Spatie `thumbnails` collection.
+- [ ] Install FFmpeg locally or provide deployment binary paths in each runtime environment.
 
 ## Phase 7: HLS Playback And Renditions
 
-- [ ] Generate multiple playback resolutions.
-- [ ] Generate HLS segments for each rendition.
-- [ ] Generate rendition playlists at `videos/{video_id}/hls/{label}/index.m3u8`.
-- [ ] Generate master playlist at `videos/{video_id}/hls/master.m3u8`.
-- [ ] Store master manifest path on `videos.playback_manifest_path`.
-- [ ] Catalog master manifest in Spatie `playback_manifests` collection.
-- [ ] Create one `video_renditions` row per quality level.
-- [ ] Store rendition playlist paths and segment prefixes.
-- [ ] Do not create one database row per HLS segment.
-- [ ] Mark video `ready` only after playback assets exist.
-- [ ] Make newly processed uploaded videos visible in public browse/watch.
+- [x] Generate multiple playback resolutions.
+- [x] Generate HLS segments for each rendition.
+- [x] Generate rendition playlists at `videos/{video_id}/hls/{label}/index.m3u8`.
+- [x] Generate master playlist at `videos/{video_id}/hls/master.m3u8`.
+- [x] Store master manifest path on `videos.playback_manifest_path`.
+- [x] Catalog master manifest in Spatie `playback_manifests` collection.
+- [x] Create one `video_renditions` row per quality level.
+- [x] Store rendition playlist paths and segment prefixes.
+- [x] Do not create one database row per HLS segment.
+- [x] Mark video `ready` only after playback assets exist.
+- [x] Make newly processed uploaded videos visible in public browse/watch.
 - [ ] Add browser playback using the manifest URL.
 
 ## Phase 8: Cloud Multipart Uploads
@@ -176,13 +177,13 @@ Legend:
 
 ### Video Processing
 
-- [~] Background processing pipeline: job skeleton exists.
-- [ ] FFmpeg-powered transcoding.
-- [ ] Thumbnail generation.
-- [ ] Metadata extraction.
-- [ ] Multi-resolution output generation.
-- [ ] HLS playlist generation.
-- [ ] Playback segment generation.
+- [x] Background processing pipeline: metadata and thumbnail processing exists.
+- [x] FFmpeg-powered transcoding.
+- [x] Thumbnail generation.
+- [x] Metadata extraction.
+- [x] Multi-resolution output generation.
+- [x] HLS playlist generation.
+- [x] Playback segment generation.
 
 ### Queue Processing
 
@@ -202,10 +203,10 @@ Legend:
 - [x] S3-compatible disk configuration.
 - [x] Source file media cataloging.
 - [~] Object storage abstraction: disk abstraction exists, cloud upload path pending.
-- [ ] Processed video storage.
+- [x] Processed video storage.
 - [ ] Thumbnail storage.
-- [ ] Playback manifest storage.
-- [ ] Segment storage.
+- [x] Playback manifest storage.
+- [x] Segment storage.
 
 ### Monitoring
 
@@ -217,11 +218,9 @@ Legend:
 
 ## Next Recommended Milestone
 
-The next milestone should be Phase 6 plus the first part of Phase 5:
+The next milestone should make the live processed videos play in the frontend:
 
-- Start `ProcessVideo` by marking the run `running` and video `processing`.
-- Use FFmpeg/ffprobe to extract duration, dimensions, and codec metadata.
-- Generate a default thumbnail.
-- Store and catalog the thumbnail.
-- Mark the run `completed` if metadata and thumbnail generation succeed.
-- Keep the video non-public until HLS playback assets are implemented.
+- Replace dummy public/creator video data with API-backed data where appropriate.
+- Add an HLS-capable browser player for `playbackManifestUrl`.
+- Confirm public `/videos` and `/videos/{video}` show newly processed `ready` videos.
+- Add creator retry controls for failed processing attempts.

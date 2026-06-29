@@ -2,11 +2,11 @@
 
 This document describes what happens to a video from the moment a creator selects a file until StreamOps queues it for future processing.
 
-It reflects the current implemented local chunked upload flow. Future S3 multipart upload, FFmpeg metadata extraction, thumbnail generation, transcoding, and HLS output are noted as future stages, not current behavior.
+It reflects the current implemented local chunked upload and FFmpeg processing flow. Future S3 multipart upload and browser player integration are noted as future stages, not current behavior.
 
 ## Current System Boundary
 
-Current upload implementation:
+Current upload and metadata/thumbnail processing implementation:
 
 - Browser uploads a selected source video in sequential chunks.
 - Browser can resume an active upload after refresh by matching the same local file to saved session metadata.
@@ -17,18 +17,13 @@ Current upload implementation:
 - Laravel assembles chunks into one original source file on `STREAMOPS_MEDIA_DISK`.
 - Spatie Media Library catalogs the assembled source file in the `source` collection.
 - The video moves to `queued`.
-- `ProcessVideo` is dispatched and creates a placeholder `video_processing_runs` row.
+- `ProcessVideo` is dispatched, marks the video `processing`, extracts metadata, generates a thumbnail, generates HLS playback assets, then marks the video `ready`.
 - Expired active upload sessions are cleaned by the scheduled `streamops:cleanup-uploads` command.
 
 Not implemented yet:
 
 - Direct browser-to-S3 multipart upload.
-- FFmpeg metadata extraction.
-- Thumbnail generation.
-- HLS master playlist generation.
-- Rendition generation.
-- Segment creation.
-- Transition to `ready` after processing.
+- Browser player integration against live HLS manifests.
 
 ## Actors And Stores
 
@@ -55,8 +50,8 @@ Configured media disk    Stores final source video. Local mode uses `public`.
 
 Queue backend            Stores dispatched `ProcessVideo` jobs.
 
-Worker                   Executes `ProcessVideo`. Current worker creates a
-                         queued processing-run placeholder.
+Worker                   Executes `ProcessVideo`. Current worker extracts
+                         metadata, generates thumbnail, and records run state.
 ```
 
 ## Data Stores And Tables
@@ -85,7 +80,7 @@ Upload status transitions in the current implementation:
 uploading -> uploaded -> queued
 ```
 
-The public catalog still filters to `ready` videos only, so uploaded videos are creator/dashboard-visible but not public-watchable yet.
+The public catalog still filters to `ready` videos only, so videos are creator/dashboard-visible during upload and processing, then public-watchable after HLS processing succeeds.
 
 ### `upload_sessions`
 
@@ -145,13 +140,16 @@ Current upload dispatches `App\Jobs\ProcessVideo` after the video is queued.
 
 ### `video_processing_runs`
 
-Current `ProcessVideo` creates a placeholder row:
+Current `ProcessVideo` creates a processing run row:
 
 - `video_id`: uploaded video.
-- `status`: `queued`.
-- `metadata.note`: states that FFmpeg processing is a later phase.
+- `status`: starts as `running`, then becomes `completed` or `failed`.
+- `metadata`: stores duration, dimensions, codec, bitrate, frame rate, raw ffprobe output, thumbnail path, rendition data, playback manifest path, and notes.
+- `started_at`: set when processing starts.
+- `finished_at`: set when processing completes or fails.
+- `error`: set when processing fails.
 
-It does not currently update the video to `processing`, `ready`, or `failed`.
+It updates the video to `ready` only after thumbnail, HLS master manifest, rendition playlists, segments, and rendition rows are created.
 
 ## Configuration Inputs
 
@@ -161,6 +159,9 @@ STREAMOPS_UPLOAD_PART_SIZE=8388608
 STREAMOPS_MAX_UPLOAD_SIZE_KB=20971520
 STREAMOPS_UPLOAD_SESSION_TTL_MINUTES=120
 MEDIA_LIBRARY_MAX_FILE_SIZE=21474836480
+STREAMOPS_FFMPEG_PATH=ffmpeg
+STREAMOPS_FFPROBE_PATH=ffprobe
+STREAMOPS_PROCESSING_TIMEOUT_SECONDS=300
 FILESYSTEM_DISK=public
 APP_URL=http://localhost:8000
 QUEUE_CONNECTION=database
@@ -171,6 +172,7 @@ Important local behavior:
 - `STREAMOPS_UPLOAD_PART_SIZE` is the requested chunk size.
 - `STREAMOPS_MAX_UPLOAD_SIZE_KB` is the maximum accepted source upload size.
 - `MEDIA_LIBRARY_MAX_FILE_SIZE` must be large enough for source videos because Spatie catalogs the assembled source file after upload.
+- `STREAMOPS_FFMPEG_PATH` and `STREAMOPS_FFPROBE_PATH` must point to installed binaries in the runtime environment.
 - The API returns an effective chunk size capped by PHP `upload_max_filesize` and `post_max_size`.
 - On this local machine, PHP reported `upload_max_filesize=2M`, so the API returns a chunk size slightly below 2 MB.
 - `php artisan storage:link` is required for browser-accessible public disk URLs.
@@ -434,18 +436,27 @@ After completion, `ProcessVideo` is placed on the queue.
 
 Current worker behavior:
 
-- Creates a `video_processing_runs` row.
-- Sets run `status=queued`.
-- Stores metadata note explaining that FFmpeg work comes later.
+- Creates a `video_processing_runs` row with `status=running`.
+- Updates video `status=processing`.
+- Copies the source file from the configured storage disk into a private local processing directory.
+- Runs `ffprobe` to extract duration, dimensions, codec, bitrate, frame rate, and raw stream metadata.
+- Runs `ffmpeg` to generate a default thumbnail.
+- Stores thumbnail at `videos/{video_id}/thumbnails/default.jpg`.
+- Updates `videos.duration_seconds`, `videos.width`, `videos.height`, and `videos.thumbnail_path`.
+- Catalogs the thumbnail in Spatie Media Library collection `thumbnails`.
+- Runs `ffmpeg` to generate HLS rendition playlists and segments.
+- Generates a master HLS manifest.
+- Stores HLS assets under `videos/{video_id}/hls/...`.
+- Updates `videos.playback_manifest_path`.
+- Catalogs the master manifest in Spatie Media Library collection `playback_manifests`.
+- Creates one `video_renditions` row per output quality.
+- Marks the processing run `completed`.
+- Marks video `status=ready`.
 
 Current worker does not:
 
-- Download or inspect the source file.
-- Extract metadata.
-- Generate thumbnails.
-- Generate HLS.
-- Create `video_renditions`.
-- Set video status to `ready`.
+- Create one database row per HLS segment.
+- Provide browser playback UI against the live manifest.
 
 ## Error And Failure Paths
 
@@ -525,7 +536,9 @@ stateDiagram-v2
     Uploading --> Uploading: POST part / chunks saved
     Uploading --> Uploaded: POST /complete / source assembled
     Uploaded --> Queued: Spatie source cataloged + ProcessVideo dispatched
-    Queued --> Queued: current ProcessVideo creates processing_runs row
+    Queued --> Processing: ProcessVideo starts metadata + thumbnail + HLS
+    Processing --> Ready: playback assets generated
+    Processing --> Failed: ffprobe/ffmpeg/source failure
 
     Uploading --> Uploading: chunk retry replaces part
     Uploading --> Uploading: refresh resume skips uploaded parts
@@ -574,7 +587,20 @@ sequenceDiagram
     API-->>Web: Completed session with queued video
 
     Queue->>Worker: Run ProcessVideo
-    Worker->>DB: Insert video_processing_runs(status=queued)
+    Worker->>DB: Insert video_processing_runs(status=running)
+    Worker->>DB: videos.status=processing
+    Worker->>Media: Read source video
+    Worker->>Worker: Run ffprobe
+    Worker->>Worker: Run ffmpeg thumbnail
+    Worker->>Worker: Run ffmpeg HLS renditions
+    Worker->>Media: Store thumbnail
+    Worker->>Media: Store HLS playlists and segments
+    Worker->>DB: Update video metadata + thumbnail_path
+    Worker->>DB: Insert media(thumbnails collection)
+    Worker->>DB: Insert media(playback_manifests collection)
+    Worker->>DB: Insert video_renditions rows
+    Worker->>DB: video_processing_runs.status=completed
+    Worker->>DB: videos.status=ready
 ```
 
 ## Current Dataflow Diagram
@@ -591,14 +617,18 @@ flowchart LR
     A -->|"source media row"| ML[("Spatie media table")]
     A -->|"dispatch job"| Q[("queue")]
     Q --> P["ProcessVideo worker"]
-    P -->|"placeholder run"| R[("video_processing_runs")]
+    P -->|"metadata + run state"| R[("video_processing_runs")]
+    P -->|"read source"| M
+    P -->|"thumbnail + HLS assets"| M
+    P -->|"duration, dimensions, thumbnail_path, manifest_path, ready"| V
+    P -->|"rendition rows"| VR[("video_renditions")]
     C["Scheduled cleanup command"] -->|"expire abandoned active sessions"| S
     C -->|"delete temp chunk dirs"| T
 ```
 
-## Future Processing Dataflow
+## Future Dataflow Work
 
-The next processing phase should extend the current queued stage like this:
+The current processing worker now reaches:
 
 ```text
 queued
@@ -606,26 +636,14 @@ queued
   -> ready
 ```
 
-Future worker responsibilities:
+Remaining dataflow work:
 
-- Read source file from `videos.source_disk` and `videos.source_path`.
-- Extract duration, width, height, codec, bitrate, and frame rate.
-- Update `videos.duration_seconds`, `videos.width`, and `videos.height`.
-- Generate thumbnail at `videos/{video_id}/thumbnails/default.jpg`.
-- Update `videos.thumbnail_path`.
-- Catalog thumbnail in Spatie collection `thumbnails`.
-- Generate HLS outputs under `videos/{video_id}/hls/...`.
-- Create one `video_renditions` row per quality level.
-- Store master manifest path in `videos.playback_manifest_path`.
-- Catalog master manifest in Spatie collection `playback_manifests`.
-- Mark processing run `completed`.
-- Mark video `ready`.
-
-Future failure behavior:
-
-- Mark processing run `failed`.
-- Store processing error on the run and/or `videos.processing_error`.
-- Mark video `failed` when playback assets cannot be produced.
+- Add browser playback UI against `videos.playback_manifest_path`.
+- Replace dummy public/creator frontend data with live API data.
+- Add retry controls that dispatch a new processing attempt for failed videos.
+- Add direct browser-to-S3 multipart upload.
+- Add cloud worker/runtime documentation for FFmpeg and ffprobe.
+- Add monitoring for queue latency, processing duration, failed runs, and stuck videos.
 
 ## Public Visibility Rule
 
@@ -636,4 +654,4 @@ videos.status = ready
 AND videos.playback_manifest_path IS NOT NULL
 ```
 
-Current uploaded videos stop at `queued`, so they should remain hidden from public browsing until the future processing pipeline creates playback assets.
+Videos only become public after the processing worker creates playback assets and sets `status=ready`.

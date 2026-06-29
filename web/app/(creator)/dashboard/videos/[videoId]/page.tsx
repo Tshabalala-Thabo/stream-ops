@@ -1,5 +1,8 @@
+"use client"
+
 import { AlertCircle, RotateCcw } from "lucide-react"
-import { notFound } from "next/navigation"
+import { useParams } from "next/navigation"
+import * as React from "react"
 
 import { CopyButton } from "@/components/streamops/copy-button"
 import { PipelineTimeline } from "@/components/streamops/pipeline-timeline"
@@ -7,6 +10,7 @@ import { RenditionList } from "@/components/streamops/rendition-list"
 import { StatusChip } from "@/components/streamops/status-chip"
 import { formatBytes, formatUpdatedAt } from "@/components/streamops/video-format"
 import { buttonVariants } from "@/components/ui/button"
+import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
   TableBody,
@@ -16,29 +20,171 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
-  getDummyProcessingRunsForVideo,
-  getDummyRenditionsForVideo,
-  getDummyUploadSessionsForVideo,
-  getDummyVideoById,
-} from "@/lib/data/dummy-videos"
+  getMyVideo,
+  getMyVideoProcessingRuns,
+  getMyVideoRenditions,
+  getMyVideoUploadSessions,
+  retryMyVideoProcessing,
+} from "@/lib/api/videos"
+import type {
+  UploadSession,
+  Video,
+  VideoProcessingRun,
+  VideoRendition,
+} from "@/lib/types"
 
-type DashboardVideoDetailPageProps = {
-  params: Promise<{ videoId: string }>
+type VideoDetailData = {
+  video: Video
+  uploadSessions: UploadSession[]
+  processingRuns: VideoProcessingRun[]
+  renditions: VideoRendition[]
 }
 
-export default async function DashboardVideoDetailPage({
-  params,
-}: DashboardVideoDetailPageProps) {
-  const { videoId } = await params
-  const video = getDummyVideoById(videoId)
+export default function DashboardVideoDetailPage() {
+  const params = useParams<{ videoId: string }>()
+  const videoId = params.videoId
+  const [data, setData] = React.useState<VideoDetailData | null>(null)
+  const [isLoading, setIsLoading] = React.useState(true)
+  const [isRetrying, setIsRetrying] = React.useState(false)
+  const [error, setError] = React.useState<string | null>(null)
 
-  if (!video) {
-    notFound()
+  const loadVideoDetail = React.useCallback(async () => {
+    setIsLoading(true)
+    setError(null)
+
+    try {
+      const [video, uploadSessions, processingRuns, renditions] =
+        await Promise.all([
+          getMyVideo(videoId),
+          getMyVideoUploadSessions(videoId),
+          getMyVideoProcessingRuns(videoId),
+          getMyVideoRenditions(videoId),
+        ])
+
+      setData({ video, uploadSessions, processingRuns, renditions })
+    } catch (detailError) {
+      setError(
+        detailError instanceof Error
+          ? detailError.message
+          : "Unable to load this video."
+      )
+    } finally {
+      setIsLoading(false)
+    }
+  }, [videoId])
+
+  React.useEffect(() => {
+    let isMounted = true
+
+    async function loadMountedVideoDetail() {
+      try {
+        const [video, uploadSessions, processingRuns, renditions] =
+          await Promise.all([
+            getMyVideo(videoId),
+            getMyVideoUploadSessions(videoId),
+            getMyVideoProcessingRuns(videoId),
+            getMyVideoRenditions(videoId),
+          ])
+
+        if (isMounted) {
+          setData({ video, uploadSessions, processingRuns, renditions })
+          setError(null)
+        }
+      } catch (detailError) {
+        if (isMounted) {
+          setError(
+            detailError instanceof Error
+              ? detailError.message
+              : "Unable to load this video."
+          )
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false)
+        }
+      }
+    }
+
+    setIsLoading(true)
+    void loadMountedVideoDetail()
+
+    return () => {
+      isMounted = false
+    }
+  }, [videoId])
+
+  async function handleRetryProcessing() {
+    if (!data) {
+      return
+    }
+
+    setIsRetrying(true)
+    setError(null)
+
+    try {
+      const video = await retryMyVideoProcessing(data.video.id)
+      setData((current) =>
+        current
+          ? {
+              ...current,
+              video,
+              renditions: [],
+              processingRuns: current.processingRuns.map((run) =>
+                run.status === "running" || run.status === "queued"
+                  ? {
+                      ...run,
+                      status: "failed",
+                      finishedAt: new Date().toISOString(),
+                      error:
+                        "Processing was retried by the creator after the queued job failed or stalled.",
+                    }
+                  : run
+              ),
+            }
+          : current
+      )
+      await loadVideoDetail()
+    } catch (retryError) {
+      setError(
+        retryError instanceof Error
+          ? retryError.message
+          : "Unable to retry processing."
+      )
+    } finally {
+      setIsRetrying(false)
+    }
   }
 
-  const uploadSessions = getDummyUploadSessionsForVideo(video.id)
-  const processingRuns = getDummyProcessingRunsForVideo(video.id)
-  const renditions = getDummyRenditionsForVideo(video.id)
+  if (isLoading) {
+    return (
+      <main className="min-h-screen bg-background px-4 py-8 text-foreground sm:px-6">
+        <section className="mx-auto max-w-7xl">
+          <Skeleton className="h-10 w-80" />
+          <Skeleton className="mt-4 h-20 w-full" />
+          <Skeleton className="mt-6 h-40 w-full" />
+        </section>
+      </main>
+    )
+  }
+
+  if (error || !data) {
+    return (
+      <main className="min-h-screen bg-background px-4 py-8 text-foreground sm:px-6">
+        <section className="mx-auto max-w-7xl rounded-lg border border-destructive-border bg-destructive-light p-4 text-destructive-dark">
+          <div className="flex gap-3">
+            <AlertCircle className="mt-0.5 size-5 shrink-0" />
+            <p className="text-sm font-medium">
+              {error ?? "This video could not be found."}
+            </p>
+          </div>
+        </section>
+      </main>
+    )
+  }
+
+  const { video, uploadSessions, processingRuns, renditions } = data
+  const canRetryProcessing =
+    video.status !== "ready" && Boolean(video.sourceDisk && video.sourcePath)
 
   return (
     <main className="min-h-screen bg-background px-4 py-8 text-foreground sm:px-6">
@@ -53,7 +199,7 @@ export default async function DashboardVideoDetailPage({
               <StatusChip status={video.status} />
             </div>
             <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-              {video.description}
+              {video.description ?? "No description provided."}
             </p>
           </div>
 
@@ -62,11 +208,12 @@ export default async function DashboardVideoDetailPage({
             <div className="mt-4 flex flex-wrap gap-2">
               <button
                 className={buttonVariants({ className: "gap-2", variant: "outline" })}
-                disabled
+                disabled={!canRetryProcessing || isRetrying}
+                onClick={handleRetryProcessing}
                 type="button"
               >
                 <RotateCcw />
-                Retry processing
+                {isRetrying ? "Retrying" : "Retry processing"}
               </button>
               <CopyButton label="Copy source" value={video.sourcePath} />
             </div>
@@ -120,7 +267,7 @@ export default async function DashboardVideoDetailPage({
                 ) : (
                   <TableRow>
                     <TableCell className="text-muted-foreground" colSpan={3}>
-                      No upload session is attached to this dummy record.
+                      No upload session is attached to this video.
                     </TableCell>
                   </TableRow>
                 )}

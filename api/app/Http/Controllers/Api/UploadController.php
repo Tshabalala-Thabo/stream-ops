@@ -15,12 +15,24 @@ use App\Models\Video;
 use App\Support\UploadPartSize;
 use App\Support\UploadSessionFiles;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
 
 class UploadController extends Controller
 {
+    public function index(Request $request)
+    {
+        $uploadSessions = UploadSession::query()
+            ->whereHas('video', fn ($query) => $query->where('user_id', $request->user()->id))
+            ->with('video.user')
+            ->latest()
+            ->get();
+
+        return UploadSessionResource::collection($uploadSessions);
+    }
+
     public function store(StoreUploadRequest $request): JsonResponse
     {
         $disk = (string) config('streamops.media_disk', 'public');
