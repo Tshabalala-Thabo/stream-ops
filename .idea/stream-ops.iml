@@ -124,6 +124,19 @@
       <excludeFolder url="file://$MODULE_DIR$/api/vendor/voku/portable-ascii" />
       <excludeFolder url="file://$MODULE_DIR$/api/storage/app" />
       <excludeFolder url="file://$MODULE_DIR$/api/storage/framework" />
+      <excludeFolder url="file://$MODULE_DIR$/api/vendor/aws/aws-crt-php" />
+      <excludeFolder url="file://$MODULE_DIR$/api/vendor/aws/aws-sdk-php" />
+      <excludeFolder url="file://$MODULE_DIR$/api/vendor/laravel/sentinel" />
+      <excludeFolder url="file://$MODULE_DIR$/api/vendor/laravel/telescope" />
+      <excludeFolder url="file://$MODULE_DIR$/api/vendor/league/flysystem-aws-s3-v3" />
+      <excludeFolder url="file://$MODULE_DIR$/api/vendor/maennchen/zipstream-php" />
+      <excludeFolder url="file://$MODULE_DIR$/api/vendor/mtdowling/jmespath.php" />
+      <excludeFolder url="file://$MODULE_DIR$/api/vendor/spatie/image" />
+      <excludeFolder url="file://$MODULE_DIR$/api/vendor/spatie/image-optimizer" />
+      <excludeFolder url="file://$MODULE_DIR$/api/vendor/spatie/laravel-medialibrary" />
+      <excludeFolder url="file://$MODULE_DIR$/api/vendor/spatie/laravel-package-tools" />
+      <excludeFolder url="file://$MODULE_DIR$/api/vendor/spatie/temporary-directory" />
+      <excludeFolder url="file://$MODULE_DIR$/api/vendor/symfony/filesystem" />
     </content>
     <orderEntry type="inheritedJdk" />
     <orderEntry type="sourceFolder" forTests="false" />
