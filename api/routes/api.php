@@ -22,4 +22,5 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
     Route::put('/uploads/{uploadSession}/parts/{partNumber}', [UploadController::class, 'storePart']);
     Route::post('/uploads/{uploadSession}/parts/{partNumber}', [UploadController::class, 'storePart']);
     Route::post('/uploads/{uploadSession}/complete', [UploadController::class, 'complete']);
+    Route::post('/uploads/{uploadSession}/abort', [UploadController::class, 'abort']);
 });

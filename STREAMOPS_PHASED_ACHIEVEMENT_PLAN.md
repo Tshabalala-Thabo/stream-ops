@@ -42,10 +42,10 @@ Legend:
 - [x] Replace dummy upload UI with a real chunked upload page.
 - [x] Show frontend upload progress while chunks upload sequentially.
 - [x] Keep the creator on the upload page after success.
-- [ ] Add browser-side persisted resume after page refresh.
-- [ ] Add parallel chunk uploads.
-- [ ] Add upload abort/cancel behavior.
-- [ ] Add cleanup for expired abandoned upload sessions and temporary chunks.
+- [x] Add browser-side persisted resume after page refresh.
+- [x] Add parallel chunk uploads.
+- [x] Add upload abort/cancel behavior.
+- [x] Add cleanup for expired abandoned upload sessions and temporary chunks.
 
 ## Phase 3: Storage And Media Catalog
 
@@ -143,8 +143,8 @@ Legend:
 - [ ] Add processing status dashboard fed by live backend data.
 - [ ] Add failed job visibility.
 - [ ] Add worker retry/failure handling beyond the current queue foundation.
-- [ ] Add cleanup job for expired upload sessions.
-- [ ] Add cleanup job for orphaned chunks.
+- [x] Add cleanup command for expired upload sessions.
+- [x] Add cleanup command for orphaned chunks from expired upload sessions.
 - [ ] Add cleanup or reconciliation for videos stuck in `uploading`, `uploaded`, or `queued`.
 - [ ] Add operational metrics for upload throughput and processing duration.
 - [ ] Add logs/events for upload started, part uploaded, upload completed, processing started, processing completed, and processing failed.
@@ -225,4 +225,3 @@ The next milestone should be Phase 6 plus the first part of Phase 5:
 - Store and catalog the thumbnail.
 - Mark the run `completed` if metadata and thumbnail generation succeed.
 - Keep the video non-public until HLS playback assets are implemented.
-

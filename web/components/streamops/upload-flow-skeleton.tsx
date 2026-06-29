@@ -2,6 +2,7 @@
 
 import {
   AlertCircle,
+  Ban,
   CheckCircle2,
   FileVideo,
   RotateCcw,
@@ -15,13 +16,72 @@ import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { Textarea } from "@/components/ui/textarea"
 import {
+  abortUploadSession,
   completeUploadSession,
   createUploadSession,
+  getUploadSession,
   uploadUploadSessionPart,
 } from "@/lib/api/uploads"
 import type { UploadSession } from "@/lib/types"
 
-type UploadPhase = "idle" | "uploading" | "completing" | "success" | "error"
+type UploadPhase =
+  | "idle"
+  | "uploading"
+  | "completing"
+  | "success"
+  | "error"
+  | "cancelled"
+
+type ResumeDraft = {
+  uploadSessionId: UploadSession["id"]
+  videoId: UploadSession["videoId"]
+  fileName: string
+  fileSize: number
+  lastModified: number
+  title: string
+  description: string
+  updatedAt: string
+}
+
+const RESUME_STORAGE_KEY = "streamops.activeUpload"
+const PARALLEL_UPLOADS = 4
+
+function readResumeDraft(): ResumeDraft | null {
+  if (typeof window === "undefined") {
+    return null
+  }
+
+  const rawDraft = window.localStorage.getItem(RESUME_STORAGE_KEY)
+
+  if (!rawDraft) {
+    return null
+  }
+
+  try {
+    return JSON.parse(rawDraft) as ResumeDraft
+  } catch {
+    window.localStorage.removeItem(RESUME_STORAGE_KEY)
+    return null
+  }
+}
+
+function writeResumeDraft(draft: ResumeDraft) {
+  window.localStorage.setItem(RESUME_STORAGE_KEY, JSON.stringify(draft))
+}
+
+function clearResumeDraft() {
+  window.localStorage.removeItem(RESUME_STORAGE_KEY)
+}
+
+function fileMatchesDraft(file: File | null, draft: ResumeDraft | null) {
+  return Boolean(
+    file &&
+      draft &&
+      file.name === draft.fileName &&
+      file.size === draft.fileSize &&
+      file.lastModified === draft.lastModified
+  )
+}
 
 export function UploadFlow() {
   const [selectedFile, setSelectedFile] = React.useState<File | null>(null)
@@ -30,29 +90,97 @@ export function UploadFlow() {
   const [phase, setPhase] = React.useState<UploadPhase>("idle")
   const [error, setError] = React.useState<string | null>(null)
   const [progressBytes, setProgressBytes] = React.useState(0)
-  const [uploadedParts, setUploadedParts] = React.useState(0)
+  const [uploadedPartNumbers, setUploadedPartNumbers] = React.useState<number[]>(
+    []
+  )
   const [activeSession, setActiveSession] =
     React.useState<UploadSession | null>(null)
   const [completedSession, setCompletedSession] =
     React.useState<UploadSession | null>(null)
+  const [resumeDraft, setResumeDraft] = React.useState<ResumeDraft | null>(null)
 
+  const abortControllerRef = React.useRef<AbortController | null>(null)
   const isUploading = phase === "uploading" || phase === "completing"
+  const canResume = fileMatchesDraft(selectedFile, resumeDraft)
+  const uploadedPartSet = React.useMemo(
+    () => new Set(uploadedPartNumbers),
+    [uploadedPartNumbers]
+  )
   const progress = selectedFile
     ? Math.min(100, Math.round((progressBytes / selectedFile.size) * 100))
     : 0
+
+  React.useEffect(() => {
+    const draft = readResumeDraft()
+
+    if (draft) {
+      setResumeDraft(draft)
+      setTitle(draft.title)
+      setDescription(draft.description)
+    }
+  }, [])
 
   function handleFileChange(file: File | null) {
     setSelectedFile(file)
     setCompletedSession(null)
     setActiveSession(null)
-    setUploadedParts(0)
+    setUploadedPartNumbers([])
     setProgressBytes(0)
     setError(null)
     setPhase("idle")
 
+    const draft = readResumeDraft()
+    setResumeDraft(draft)
+
+    if (fileMatchesDraft(file, draft)) {
+      setTitle(draft?.title ?? "")
+      setDescription(draft?.description ?? "")
+      return
+    }
+
     if (file && title.trim() === "") {
       setTitle(file.name.replace(/\.[^.]+$/, ""))
     }
+  }
+
+  async function resolveUploadSession(file: File): Promise<UploadSession> {
+    const draft = resumeDraft
+
+    if (fileMatchesDraft(file, draft) && draft) {
+      const session = await getUploadSession(draft.uploadSessionId)
+
+      if (session.status !== "active") {
+        clearResumeDraft()
+        setResumeDraft(null)
+        throw new Error("The saved upload session is no longer active.")
+      }
+
+      return session
+    }
+
+    const session = await createUploadSession({
+      title: title.trim(),
+      description: description.trim() || null,
+      fileName: file.name,
+      fileSize: file.size,
+      mimeType: file.type || "video/mp4",
+    })
+
+    const nextDraft: ResumeDraft = {
+      uploadSessionId: session.id,
+      videoId: session.videoId,
+      fileName: file.name,
+      fileSize: file.size,
+      lastModified: file.lastModified,
+      title: title.trim(),
+      description: description.trim(),
+      updatedAt: new Date().toISOString(),
+    }
+
+    writeResumeDraft(nextDraft)
+    setResumeDraft(nextDraft)
+
+    return session
   }
 
   async function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
@@ -68,72 +196,168 @@ export function UploadFlow() {
       return
     }
 
+    const file = selectedFile
+    const abortController = new AbortController()
+    abortControllerRef.current = abortController
     setPhase("uploading")
     setError(null)
     setCompletedSession(null)
-    setUploadedParts(0)
     setProgressBytes(0)
 
     try {
-      const uploadSession = await createUploadSession({
-        title: title.trim(),
-        description: description.trim() || null,
-        fileName: selectedFile.name,
-        fileSize: selectedFile.size,
-        mimeType: selectedFile.type || "video/mp4",
-      })
+      const uploadSession = await resolveUploadSession(file)
       setActiveSession(uploadSession)
 
-      const partSize = uploadSession.partSize
-      const totalParts = uploadSession.totalParts
-      let committedBytes = 0
+      const uploadedParts = new Map(
+        uploadSession.uploadedParts.map((part) => [part.partNumber, part.size])
+      )
+      const uploadedNumbers = Array.from(uploadedParts.keys()).sort(
+        (first, second) => first - second
+      )
+      const inFlightProgress = new Map<number, number>()
+      let committedBytes = Array.from(uploadedParts.values()).reduce(
+        (total, size) => total + size,
+        0
+      )
 
-      for (let index = 0; index < totalParts; index++) {
-        const partNumber = index + 1
-        const start = index * partSize
-        const end = Math.min(start + partSize, selectedFile.size)
-        const chunk = selectedFile.slice(start, end, selectedFile.type)
+      setUploadedPartNumbers(uploadedNumbers)
+      setProgressBytes(committedBytes)
 
-        const nextSession = await uploadUploadSessionPart({
-          uploadSessionId: uploadSession.id,
-          partNumber,
-          chunk,
-          onProgress: (partBytes) => {
-            setProgressBytes(committedBytes + partBytes)
-          },
-        })
+      const updateProgress = () => {
+        const activeBytes = Array.from(inFlightProgress.values()).reduce(
+          (total, size) => total + size,
+          0
+        )
+        setProgressBytes(committedBytes + activeBytes)
+      }
 
-        committedBytes += chunk.size
-        setProgressBytes(committedBytes)
-        setUploadedParts(partNumber)
-        setActiveSession(nextSession)
+      const missingParts = Array.from(
+        { length: uploadSession.totalParts },
+        (_, index) => index + 1
+      ).filter((partNumber) => ! uploadedParts.has(partNumber))
+
+      let nextPartIndex = 0
+
+      async function uploadWorker() {
+        while (nextPartIndex < missingParts.length) {
+          if (abortController.signal.aborted) {
+            return
+          }
+
+          const partNumber = missingParts[nextPartIndex]
+          nextPartIndex += 1
+
+          const start = (partNumber - 1) * uploadSession.partSize
+          const end = Math.min(start + uploadSession.partSize, file.size)
+          const chunk = file.slice(start, end, file.type)
+
+          const nextSession = await uploadUploadSessionPart({
+            uploadSessionId: uploadSession.id,
+            partNumber,
+            chunk,
+            signal: abortController.signal,
+            onProgress: (partBytes) => {
+              inFlightProgress.set(partNumber, partBytes)
+              updateProgress()
+            },
+          })
+
+          inFlightProgress.delete(partNumber)
+          committedBytes += chunk.size
+          uploadedParts.set(partNumber, chunk.size)
+          setUploadedPartNumbers(
+            Array.from(uploadedParts.keys()).sort(
+              (first, second) => first - second
+            )
+          )
+          setActiveSession(nextSession)
+          updateProgress()
+        }
+      }
+
+      await Promise.all(
+        Array.from({
+          length: Math.min(PARALLEL_UPLOADS, Math.max(1, missingParts.length)),
+        }).map(() => uploadWorker())
+      )
+
+      if (abortController.signal.aborted) {
+        return
       }
 
       setPhase("completing")
       const completed = await completeUploadSession(uploadSession.id)
-      setProgressBytes(selectedFile.size)
-      setUploadedParts(totalParts)
+      clearResumeDraft()
+      setResumeDraft(null)
+      setProgressBytes(file.size)
+      setUploadedPartNumbers(
+        Array.from({ length: uploadSession.totalParts }, (_, index) => index + 1)
+      )
       setCompletedSession(completed)
       setActiveSession(completed)
       setPhase("success")
     } catch (uploadError) {
+      if (uploadError instanceof DOMException && uploadError.name === "AbortError") {
+        setPhase("cancelled")
+        setError(null)
+        return
+      }
+
       setPhase("error")
       setError(
         uploadError instanceof Error
           ? uploadError.message
           : "The upload failed. Please try again."
       )
+    } finally {
+      abortControllerRef.current = null
     }
   }
 
+  async function cancelUpload() {
+    abortControllerRef.current?.abort()
+
+    const sessionToAbort = activeSession ?? resumeDraft
+
+    if (!sessionToAbort) {
+      setPhase("cancelled")
+      return
+    }
+
+    try {
+      const aborted = await abortUploadSession(
+        "uploadSessionId" in sessionToAbort
+          ? sessionToAbort.uploadSessionId
+          : sessionToAbort.id
+      )
+      setActiveSession(aborted)
+    } catch (cancelError) {
+      setError(
+        cancelError instanceof Error
+          ? cancelError.message
+          : "Unable to cancel the upload session."
+      )
+      setPhase("error")
+      return
+    }
+
+    clearResumeDraft()
+    setResumeDraft(null)
+    setUploadedPartNumbers([])
+    setProgressBytes(0)
+    setPhase("cancelled")
+  }
+
   function resetUpload() {
+    clearResumeDraft()
+    setResumeDraft(null)
     setSelectedFile(null)
     setTitle("")
     setDescription("")
     setPhase("idle")
     setError(null)
     setProgressBytes(0)
-    setUploadedParts(0)
+    setUploadedPartNumbers([])
     setActiveSession(null)
     setCompletedSession(null)
   }
@@ -154,9 +378,9 @@ export function UploadFlow() {
             <input
               accept="video/*"
               className="sr-only"
-              type="file"
               disabled={isUploading}
               onChange={(event) => handleFileChange(event.target.files?.[0] ?? null)}
+              type="file"
             />
             <span className="inline-flex h-9 cursor-pointer items-center gap-2 rounded-md bg-gradient-primary px-3 text-sm font-medium text-white shadow-sm">
               <UploadCloud className="size-4" />
@@ -164,6 +388,17 @@ export function UploadFlow() {
             </span>
           </label>
         </div>
+
+        {resumeDraft && !selectedFile && (
+          <div className="mt-5 rounded-lg border border-info/30 bg-info/10 p-4">
+            <h3 className="font-heading text-sm font-semibold">
+              Resume available
+            </h3>
+            <p className="mt-2 text-sm leading-6 text-muted-foreground">
+              Choose {resumeDraft.fileName} again to continue the saved upload.
+            </p>
+          </div>
+        )}
 
         {selectedFile && (
           <div className="mt-5 rounded-lg border p-4">
@@ -182,6 +417,11 @@ export function UploadFlow() {
                 <dd className="font-mono text-xs">{formatBytes(selectedFile.size)}</dd>
               </div>
             </dl>
+            {canResume && (
+              <p className="mt-3 text-xs font-medium text-info">
+                This file matches the saved upload and will resume missing chunks.
+              </p>
+            )}
           </div>
         )}
 
@@ -224,7 +464,7 @@ export function UploadFlow() {
               </h3>
               <p className="mt-1 text-xs text-muted-foreground">
                 {activeSession
-                  ? `${uploadedParts} of ${activeSession.totalParts} chunks uploaded`
+                  ? `${uploadedPartNumbers.length} of ${activeSession.totalParts} chunks uploaded`
                   : "Progress appears after the upload session starts."}
               </p>
             </div>
@@ -238,7 +478,7 @@ export function UploadFlow() {
               {Array.from({ length: activeSession.totalParts }).map(
                 (_, index) => {
                   const partNumber = index + 1
-                  const isUploaded = partNumber <= uploadedParts
+                  const isUploaded = uploadedPartSet.has(partNumber)
 
                   return (
                     <div
@@ -283,6 +523,10 @@ export function UploadFlow() {
                 {activeSession ? formatBytes(activeSession.partSize) : "set by API"}
               </dd>
             </div>
+            <div>
+              <dt className="text-muted-foreground">Parallel uploads</dt>
+              <dd className="font-mono text-xs">{PARALLEL_UPLOADS}</dd>
+            </div>
           </dl>
         </section>
 
@@ -297,6 +541,18 @@ export function UploadFlow() {
                 <p className="mt-2 text-sm leading-6">{error}</p>
               </div>
             </div>
+          </section>
+        )}
+
+        {phase === "cancelled" && (
+          <section className="rounded-lg border bg-surface p-4">
+            <Ban className="size-5 text-muted-foreground" />
+            <h2 className="mt-3 font-heading text-sm font-semibold">
+              Upload cancelled
+            </h2>
+            <p className="mt-3 text-sm leading-6 text-muted-foreground">
+              The temporary chunks were removed and the upload session was closed.
+            </p>
           </section>
         )}
 
@@ -321,20 +577,38 @@ export function UploadFlow() {
             </Button>
           </section>
         ) : (
-          <Button
-            className="w-full"
-            disabled={!selectedFile || title.trim() === "" || isUploading}
-            type="submit"
-          >
-            <UploadCloud className="size-4" />
-            {phase === "completing"
-              ? "Finalizing"
-              : phase === "uploading"
-                ? "Uploading"
-                : phase === "error"
-                  ? "Try again"
-                  : "Start upload"}
-          </Button>
+          <div className="grid gap-3">
+            <Button
+              className="w-full"
+              disabled={!selectedFile || title.trim() === "" || isUploading}
+              type="submit"
+            >
+              <UploadCloud className="size-4" />
+              {phase === "completing"
+                ? "Finalizing"
+                : phase === "uploading"
+                  ? "Uploading"
+                  : phase === "error"
+                    ? canResume
+                      ? "Resume upload"
+                      : "Try again"
+                    : canResume
+                      ? "Resume upload"
+                      : "Start upload"}
+            </Button>
+            {(isUploading || activeSession || resumeDraft) && (
+              <Button
+                className="w-full"
+                disabled={phase === "success"}
+                onClick={cancelUpload}
+                type="button"
+                variant="destructive"
+              >
+                <Ban className="size-4" />
+                Cancel upload
+              </Button>
+            )}
+          </div>
         )}
       </aside>
     </form>

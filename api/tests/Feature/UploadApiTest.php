@@ -54,6 +54,14 @@ class UploadApiTest extends TestCase
         ]);
     }
 
+    public function test_media_library_allows_large_source_video_cataloging(): void
+    {
+        $this->assertGreaterThan(
+            423.67 * 1024 * 1024,
+            config('media-library.max_file_size')
+        );
+    }
+
     public function test_users_cannot_access_another_users_creator_media_records(): void
     {
         Sanctum::actingAs(User::factory()->create());
@@ -196,5 +204,81 @@ class UploadApiTest extends TestCase
 
         $this->postJson("/api/uploads/{$otherUploadSession->id}/complete")
             ->assertForbidden();
+    }
+
+    public function test_authenticated_user_can_abort_active_upload_session_and_delete_chunks(): void
+    {
+        Storage::fake('local');
+        Sanctum::actingAs($user = User::factory()->create());
+
+        $video = Video::factory()->for($user)->create([
+            'status' => VideoStatus::Uploading,
+            'source_disk' => 'public',
+            'source_path' => 'videos/test-video/source/original.mp4',
+        ]);
+        $uploadSession = UploadSession::factory()->for($video)->create([
+            'status' => UploadSessionStatus::Active,
+            'uploaded_parts' => [
+                ['partNumber' => 1, 'etag' => 'etag-1', 'size' => 5],
+            ],
+        ]);
+        Storage::disk('local')->put("upload-sessions/{$uploadSession->id}/parts/1.part", 'hello');
+
+        $this->postJson("/api/uploads/{$uploadSession->id}/abort")
+            ->assertOk()
+            ->assertJsonPath('data.status', 'aborted')
+            ->assertJsonPath('data.video.status', 'failed');
+
+        $this->assertSame(UploadSessionStatus::Aborted, $uploadSession->fresh()->status);
+        $this->assertSame(VideoStatus::Failed, $video->fresh()->status);
+        $this->assertFalse(Storage::disk('local')->exists("upload-sessions/{$uploadSession->id}"));
+    }
+
+    public function test_users_cannot_abort_another_users_upload_session(): void
+    {
+        Storage::fake('local');
+        Sanctum::actingAs(User::factory()->create());
+
+        $otherUploadSession = UploadSession::factory()
+            ->for(Video::factory()->create(['status' => VideoStatus::Uploading]))
+            ->create(['status' => UploadSessionStatus::Active]);
+
+        $this->postJson("/api/uploads/{$otherUploadSession->id}/abort")
+            ->assertForbidden();
+    }
+
+    public function test_cleanup_command_fails_expired_active_sessions_and_deletes_chunks(): void
+    {
+        Storage::fake('local');
+
+        $expiredVideo = Video::factory()->create([
+            'status' => VideoStatus::Uploading,
+        ]);
+        $expiredSession = UploadSession::factory()->for($expiredVideo)->create([
+            'status' => UploadSessionStatus::Active,
+            'expires_at' => now()->subMinute(),
+        ]);
+        Storage::disk('local')->put("upload-sessions/{$expiredSession->id}/parts/1.part", 'expired');
+
+        $activeVideo = Video::factory()->create([
+            'status' => VideoStatus::Uploading,
+        ]);
+        $activeSession = UploadSession::factory()->for($activeVideo)->create([
+            'status' => UploadSessionStatus::Active,
+            'expires_at' => now()->addHour(),
+        ]);
+        Storage::disk('local')->put("upload-sessions/{$activeSession->id}/parts/1.part", 'active');
+
+        $this->artisan('streamops:cleanup-uploads')
+            ->expectsOutput('Cleaned 1 expired upload session(s).')
+            ->assertExitCode(0);
+
+        $this->assertSame(UploadSessionStatus::Failed, $expiredSession->fresh()->status);
+        $this->assertSame(VideoStatus::Failed, $expiredVideo->fresh()->status);
+        $this->assertFalse(Storage::disk('local')->exists("upload-sessions/{$expiredSession->id}"));
+
+        $this->assertSame(UploadSessionStatus::Active, $activeSession->fresh()->status);
+        $this->assertSame(VideoStatus::Uploading, $activeVideo->fresh()->status);
+        $this->assertTrue(Storage::disk('local')->exists("upload-sessions/{$activeSession->id}/parts/1.part"));
     }
 }

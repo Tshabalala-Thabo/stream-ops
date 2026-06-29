@@ -45,18 +45,48 @@ export async function completeUploadSession(
   return response.data
 }
 
+export async function getUploadSession(
+  uploadSessionId: UploadSession["id"]
+): Promise<UploadSession> {
+  const response = await apiFetch<ApiResource<UploadSession>>(
+    `/api/uploads/${uploadSessionId}`
+  )
+
+  return response.data
+}
+
+export async function abortUploadSession(
+  uploadSessionId: UploadSession["id"]
+): Promise<UploadSession> {
+  const response = await apiFetch<ApiResource<UploadSession>>(
+    `/api/uploads/${uploadSessionId}/abort`,
+    {
+      method: "POST",
+    }
+  )
+
+  return response.data
+}
+
 export function uploadUploadSessionPart({
   uploadSessionId,
   partNumber,
   chunk,
   onProgress,
+  signal,
 }: {
   uploadSessionId: UploadSession["id"]
   partNumber: number
   chunk: Blob
   onProgress?: (uploadedBytes: number) => void
+  signal?: AbortSignal
 }): Promise<UploadSession> {
   return new Promise((resolve, reject) => {
+    if (signal?.aborted) {
+      reject(new DOMException("Upload cancelled", "AbortError"))
+      return
+    }
+
     const formData = new FormData()
     formData.append("_method", "PUT")
     formData.append("chunk", chunk, `${partNumber}.part`)
@@ -81,7 +111,15 @@ export function uploadUploadSessionPart({
       }
     }
 
+    const handleAbort = () => {
+      request.abort()
+      reject(new DOMException("Upload cancelled", "AbortError"))
+    }
+
+    signal?.addEventListener("abort", handleAbort, { once: true })
+
     request.onload = () => {
+      signal?.removeEventListener("abort", handleAbort)
       const contentType = request.getResponseHeader("content-type")
       const body = contentType?.includes("application/json")
         ? JSON.parse(request.responseText)
@@ -102,7 +140,13 @@ export function uploadUploadSessionPart({
     }
 
     request.onerror = () => {
+      signal?.removeEventListener("abort", handleAbort)
       reject(new ApiError("Upload part failed", request.status || 0))
+    }
+
+    request.onabort = () => {
+      signal?.removeEventListener("abort", handleAbort)
+      reject(new DOMException("Upload cancelled", "AbortError"))
     }
 
     request.send(formData)

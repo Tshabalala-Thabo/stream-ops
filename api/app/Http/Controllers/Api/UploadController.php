@@ -13,6 +13,7 @@ use App\Jobs\ProcessVideo;
 use App\Models\UploadSession;
 use App\Models\Video;
 use App\Support\UploadPartSize;
+use App\Support\UploadSessionFiles;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
@@ -83,7 +84,7 @@ class UploadController extends Controller
             ]);
         }
 
-        $chunkPath = $this->chunkPath($uploadSession, $partNumber);
+        $chunkPath = UploadSessionFiles::chunkPath($uploadSession, $partNumber);
         $etag = hash_file('sha256', $chunk->getRealPath()) ?: sha1($uploadSession->id.'-'.$partNumber);
         $size = (int) $chunk->getSize();
 
@@ -129,7 +130,28 @@ class UploadController extends Controller
             ProcessVideo::dispatch($video);
         });
 
-        Storage::disk('local')->deleteDirectory($this->chunkDirectory($uploadSession));
+        UploadSessionFiles::deleteTemporaryChunks($uploadSession);
+
+        return new UploadSessionResource($uploadSession->refresh()->load('video.user'));
+    }
+
+    public function abort(UploadSession $uploadSession): UploadSessionResource
+    {
+        $this->authorizeUploadSession($uploadSession);
+        $this->ensureActiveUploadSession($uploadSession);
+
+        DB::transaction(function () use ($uploadSession): void {
+            $uploadSession->update([
+                'status' => UploadSessionStatus::Aborted,
+            ]);
+
+            $uploadSession->video->update([
+                'status' => VideoStatus::Failed,
+                'processing_error' => 'Upload was cancelled before completion.',
+            ]);
+        });
+
+        UploadSessionFiles::deleteTemporaryChunks($uploadSession);
 
         return new UploadSessionResource($uploadSession->refresh()->load('video.user'));
     }
@@ -185,7 +207,7 @@ class UploadController extends Controller
         $missingParts = collect(range(1, $uploadSession->total_parts))
             ->filter(
                 fn (int $partNumber): bool => ! $uploadedPartNumbers->contains($partNumber)
-                    || ! Storage::disk('local')->exists($this->chunkPath($uploadSession, $partNumber))
+                    || ! Storage::disk('local')->exists(UploadSessionFiles::chunkPath($uploadSession, $partNumber))
             )
             ->values()
             ->all();
@@ -217,7 +239,7 @@ class UploadController extends Controller
 
         try {
             for ($partNumber = 1; $partNumber <= $uploadSession->total_parts; $partNumber++) {
-                $chunkStream = Storage::disk('local')->readStream($this->chunkPath($uploadSession, $partNumber));
+                $chunkStream = Storage::disk('local')->readStream(UploadSessionFiles::chunkPath($uploadSession, $partNumber));
 
                 if ($chunkStream === false) {
                     throw ValidationException::withMessages([
@@ -247,16 +269,6 @@ class UploadController extends Controller
         $extension = preg_match('/^[a-z0-9]+$/', $extension) === 1 ? $extension : 'bin';
 
         return "videos/{$video->id}/source/original.{$extension}";
-    }
-
-    private function chunkDirectory(UploadSession $uploadSession): string
-    {
-        return "upload-sessions/{$uploadSession->id}";
-    }
-
-    private function chunkPath(UploadSession $uploadSession, int $partNumber): string
-    {
-        return $this->chunkDirectory($uploadSession)."/parts/{$partNumber}.part";
     }
 
     private function catalogSourceMedia(Video $video): void

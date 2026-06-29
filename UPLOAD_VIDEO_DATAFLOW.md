@@ -9,12 +9,16 @@ It reflects the current implemented local chunked upload flow. Future S3 multipa
 Current upload implementation:
 
 - Browser uploads a selected source video in sequential chunks.
+- Browser can resume an active upload after refresh by matching the same local file to saved session metadata.
+- Browser uploads chunks in a small parallel pool.
+- Creator can cancel an active upload session.
 - Laravel receives chunk requests through authenticated API routes.
 - Temporary chunks are stored on the private `local` disk.
 - Laravel assembles chunks into one original source file on `STREAMOPS_MEDIA_DISK`.
 - Spatie Media Library catalogs the assembled source file in the `source` collection.
 - The video moves to `queued`.
 - `ProcessVideo` is dispatched and creates a placeholder `video_processing_runs` row.
+- Expired active upload sessions are cleaned by the scheduled `streamops:cleanup-uploads` command.
 
 Not implemented yet:
 
@@ -154,8 +158,9 @@ It does not currently update the video to `processing`, `ready`, or `failed`.
 ```text
 STREAMOPS_MEDIA_DISK=public
 STREAMOPS_UPLOAD_PART_SIZE=8388608
-STREAMOPS_MAX_UPLOAD_SIZE_KB=524288
+STREAMOPS_MAX_UPLOAD_SIZE_KB=20971520
 STREAMOPS_UPLOAD_SESSION_TTL_MINUTES=120
+MEDIA_LIBRARY_MAX_FILE_SIZE=21474836480
 FILESYSTEM_DISK=public
 APP_URL=http://localhost:8000
 QUEUE_CONNECTION=database
@@ -164,6 +169,8 @@ QUEUE_CONNECTION=database
 Important local behavior:
 
 - `STREAMOPS_UPLOAD_PART_SIZE` is the requested chunk size.
+- `STREAMOPS_MAX_UPLOAD_SIZE_KB` is the maximum accepted source upload size.
+- `MEDIA_LIBRARY_MAX_FILE_SIZE` must be large enough for source videos because Spatie catalogs the assembled source file after upload.
 - The API returns an effective chunk size capped by PHP `upload_max_filesize` and `post_max_size`.
 - On this local machine, PHP reported `upload_max_filesize=2M`, so the API returns a chunk size slightly below 2 MB.
 - `php artisan storage:link` is required for browser-accessible public disk URLs.
@@ -287,7 +294,9 @@ chunk = file.slice(start, end, file.type)
 partNumber = partIndex + 1
 ```
 
-Current implementation uploads chunks sequentially. This keeps the local flow simple and makes progress/state easier to reason about.
+Current implementation uploads chunks in parallel with a small fixed concurrency. The frontend aggregates completed and in-flight chunk bytes into one overall progress value.
+
+If the page refreshes, the frontend can recover the active upload session from `localStorage`. The browser still requires the creator to reselect the same local file, because web pages cannot safely keep raw file access across refreshes.
 
 ### 4. Frontend uploads each chunk
 
@@ -348,6 +357,23 @@ Retry behavior:
 - Retrying the same `partNumber` replaces the temporary chunk file.
 - The `uploaded_parts` array keeps one entry per part number.
 - The frontend can retry after an error without creating a new video, as long as it still has the active session.
+
+Resume behavior:
+
+- The frontend stores active upload metadata in `localStorage`.
+- Saved metadata includes upload session ID, video ID, file name, file size, file last-modified timestamp, title, and description.
+- On refresh, the creator must select the same file again.
+- The frontend fetches `GET /api/uploads/{uploadSession}`.
+- Already uploaded parts are skipped.
+- Missing parts continue uploading.
+
+Cancel behavior:
+
+- The frontend aborts active browser upload requests.
+- The frontend calls `POST /api/uploads/{uploadSession}/abort`.
+- Laravel marks the upload session `aborted`.
+- Laravel marks the video `failed`.
+- Laravel deletes temporary chunks for that session.
 
 ### 5. Frontend confirms completion
 
@@ -474,6 +500,23 @@ Expected API response:
 
 When completion fails before assembly, the session stays `active` and the video stays `uploading`.
 
+### Scheduled cleanup closes expired abandoned uploads
+
+Command:
+
+```text
+php artisan streamops:cleanup-uploads
+```
+
+Scheduled behavior:
+
+- Runs hourly through Laravel's scheduler.
+- Finds active upload sessions where `expires_at < now()`.
+- Marks the upload session `failed`.
+- Marks the related video `failed`.
+- Stores `Upload session expired before completion.` on `videos.processing_error`.
+- Deletes temporary chunks under `upload-sessions/{session_id}`.
+
 ## Current State Diagram
 
 ```mermaid
@@ -485,7 +528,10 @@ stateDiagram-v2
     Queued --> Queued: current ProcessVideo creates processing_runs row
 
     Uploading --> Uploading: chunk retry replaces part
+    Uploading --> Uploading: refresh resume skips uploaded parts
     Uploading --> Uploading: completion rejected if parts missing
+    Uploading --> Failed: creator aborts upload
+    Uploading --> Failed: scheduled cleanup expires session
 ```
 
 ## Current Sequence Diagram
@@ -507,7 +553,7 @@ sequenceDiagram
     API->>DB: Insert upload_sessions(status=active)
     API-->>Web: partSize, totalParts, uploadSession, video
 
-    loop For each part
+    par Parallel part pool
         Web->>Web: Slice file chunk
         Web->>API: POST /api/uploads/{id}/parts/{partNumber}
         API->>Temp: Store chunk part file
@@ -546,6 +592,8 @@ flowchart LR
     A -->|"dispatch job"| Q[("queue")]
     Q --> P["ProcessVideo worker"]
     P -->|"placeholder run"| R[("video_processing_runs")]
+    C["Scheduled cleanup command"] -->|"expire abandoned active sessions"| S
+    C -->|"delete temp chunk dirs"| T
 ```
 
 ## Future Processing Dataflow
@@ -589,4 +637,3 @@ AND videos.playback_manifest_path IS NOT NULL
 ```
 
 Current uploaded videos stop at `queued`, so they should remain hidden from public browsing until the future processing pipeline creates playback assets.
-
