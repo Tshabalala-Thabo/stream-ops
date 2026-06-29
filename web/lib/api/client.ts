@@ -23,9 +23,35 @@ export class ApiError extends Error {
   }
 }
 
+function createApiHeaders(initHeaders?: HeadersInit, hasBody = false): Headers {
+  const headers = new Headers(initHeaders)
+
+  if (!headers.has("Accept")) {
+    headers.set("Accept", "application/json")
+  }
+
+  if (!headers.has("X-Requested-With")) {
+    headers.set("X-Requested-With", "XMLHttpRequest")
+  }
+
+  if (hasBody && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json")
+  }
+
+  const xsrfToken =
+    typeof document !== "undefined" ? getCookie("XSRF-TOKEN") : null
+
+  if (xsrfToken && !headers.has("X-XSRF-TOKEN")) {
+    headers.set("X-XSRF-TOKEN", xsrfToken)
+  }
+
+  return headers
+}
+
 export async function getCsrfCookie() {
   await fetch(`${API_URL}/sanctum/csrf-cookie`, {
     credentials: "include",
+    headers: createApiHeaders(),
   })
 }
 
@@ -36,14 +62,7 @@ export async function apiFetch<T>(
   const response = await fetch(`${API_URL}${path}`, {
     ...init,
     credentials: "include",
-    headers: {
-      Accept: "application/json",
-      ...(typeof document !== "undefined" && getCookie("XSRF-TOKEN")
-        ? { "X-XSRF-TOKEN": getCookie("XSRF-TOKEN") as string }
-        : {}),
-      ...(init.body ? { "Content-Type": "application/json" } : {}),
-      ...init.headers,
-    },
+    headers: createApiHeaders(init.headers, Boolean(init.body)),
   })
 
   if (response.status === 204) {
