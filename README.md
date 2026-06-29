@@ -113,6 +113,8 @@ The primary goal of this project is to demonstrate expertise in:
 
 ## Processing Workflow
 
+For the detailed current upload lifecycle, database writes, storage paths, status transitions, queue handoff, and Mermaid-ready dataflow notes, see [StreamOps Upload Video Dataflow](./UPLOAD_VIDEO_DATAFLOW.md).
+
 ### 1. Upload Creation
 
 User initiates an upload request.
