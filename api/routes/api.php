@@ -19,5 +19,7 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
 
     Route::post('/uploads', [UploadController::class, 'store']);
     Route::get('/uploads/{uploadSession}', [UploadController::class, 'show']);
+    Route::put('/uploads/{uploadSession}/parts/{partNumber}', [UploadController::class, 'storePart']);
+    Route::post('/uploads/{uploadSession}/parts/{partNumber}', [UploadController::class, 'storePart']);
     Route::post('/uploads/{uploadSession}/complete', [UploadController::class, 'complete']);
 });

@@ -2,10 +2,11 @@
 
 namespace App\Http\Requests;
 
+use App\Support\UploadPartSize;
 use Illuminate\Contracts\Validation\ValidationRule;
 use Illuminate\Foundation\Http\FormRequest;
 
-class StoreUploadRequest extends FormRequest
+class StoreUploadPartRequest extends FormRequest
 {
     /**
      * Determine if the user is authorized to make this request.
@@ -22,14 +23,10 @@ class StoreUploadRequest extends FormRequest
      */
     public function rules(): array
     {
-        $maxUploadSizeKb = (int) config('streamops.max_upload_size_kb', 512 * 1024);
+        $partSizeKb = (int) ceil(UploadPartSize::effective() / 1024);
 
         return [
-            'title' => ['required', 'string', 'max:255'],
-            'description' => ['nullable', 'string', 'max:5000'],
-            'fileName' => ['required', 'string', 'max:255'],
-            'fileSize' => ['required', 'integer', 'min:1', 'max:'.($maxUploadSizeKb * 1024)],
-            'mimeType' => ['required', 'string', 'max:255', 'starts_with:video/'],
+            'chunk' => ['required', 'file', 'max:'.$partSizeKb],
         ];
     }
 }

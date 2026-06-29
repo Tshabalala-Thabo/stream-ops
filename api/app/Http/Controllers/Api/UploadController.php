@@ -6,21 +6,24 @@ use App\Enums\UploadSessionStatus;
 use App\Enums\VideoStatus;
 use App\Http\Controllers\Controller;
 use App\Http\Requests\CompleteUploadRequest;
+use App\Http\Requests\StoreUploadPartRequest;
 use App\Http\Requests\StoreUploadRequest;
 use App\Http\Resources\UploadSessionResource;
 use App\Jobs\ProcessVideo;
 use App\Models\UploadSession;
 use App\Models\Video;
+use App\Support\UploadPartSize;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
+use Illuminate\Validation\ValidationException;
 
 class UploadController extends Controller
 {
     public function store(StoreUploadRequest $request): JsonResponse
     {
         $disk = (string) config('streamops.media_disk', 'public');
-        $partSize = (int) config('streamops.upload_part_size', 8 * 1024 * 1024);
+        $partSize = UploadPartSize::effective();
         $fileSize = (int) $request->integer('fileSize');
 
         $uploadSession = DB::transaction(function () use ($request, $disk, $partSize, $fileSize): UploadSession {
@@ -63,14 +66,52 @@ class UploadController extends Controller
         return new UploadSessionResource($uploadSession->load('video.user'));
     }
 
+    public function storePart(
+        StoreUploadPartRequest $request,
+        UploadSession $uploadSession,
+        int $partNumber
+    ): UploadSessionResource {
+        $this->authorizeUploadSession($uploadSession);
+        $this->ensureActiveUploadSession($uploadSession);
+        $this->ensureValidPartNumber($uploadSession, $partNumber);
+
+        $chunk = $request->file('chunk');
+
+        if ($chunk === null || ! $chunk->isValid()) {
+            throw ValidationException::withMessages([
+                'chunk' => 'The uploaded chunk is invalid.',
+            ]);
+        }
+
+        $chunkPath = $this->chunkPath($uploadSession, $partNumber);
+        $etag = hash_file('sha256', $chunk->getRealPath()) ?: sha1($uploadSession->id.'-'.$partNumber);
+        $size = (int) $chunk->getSize();
+
+        Storage::disk('local')->put($chunkPath, $chunk->getContent());
+
+        $uploadSession->update([
+            'uploaded_parts' => $this->mergeUploadedPart($uploadSession, [
+                'partNumber' => $partNumber,
+                'etag' => $etag,
+                'size' => $size,
+            ]),
+        ]);
+
+        return new UploadSessionResource($uploadSession->refresh()->load('video.user'));
+    }
+
     public function complete(CompleteUploadRequest $request, UploadSession $uploadSession): UploadSessionResource
     {
         $this->authorizeUploadSession($uploadSession);
+        $this->ensureActiveUploadSession($uploadSession);
+        $request->validated();
 
-        DB::transaction(function () use ($request, $uploadSession): void {
+        $this->ensureAllPartsExist($uploadSession);
+        $this->assembleSourceFile($uploadSession);
+
+        DB::transaction(function () use ($uploadSession): void {
             $uploadSession->update([
                 'status' => UploadSessionStatus::Completed,
-                'uploaded_parts' => $request->input('uploadedParts', $uploadSession->uploaded_parts ?? []),
             ]);
 
             $video = $uploadSession->video;
@@ -88,6 +129,8 @@ class UploadController extends Controller
             ProcessVideo::dispatch($video);
         });
 
+        Storage::disk('local')->deleteDirectory($this->chunkDirectory($uploadSession));
+
         return new UploadSessionResource($uploadSession->refresh()->load('video.user'));
     }
 
@@ -98,12 +141,122 @@ class UploadController extends Controller
         abort_unless($uploadSession->video->user_id === request()->user()->id, 403);
     }
 
+    private function ensureActiveUploadSession(UploadSession $uploadSession): void
+    {
+        if ($uploadSession->status !== UploadSessionStatus::Active) {
+            throw ValidationException::withMessages([
+                'uploadSession' => 'Only active upload sessions can receive file chunks.',
+            ]);
+        }
+    }
+
+    private function ensureValidPartNumber(UploadSession $uploadSession, int $partNumber): void
+    {
+        if ($partNumber < 1 || $partNumber > $uploadSession->total_parts) {
+            throw ValidationException::withMessages([
+                'partNumber' => 'The upload part number is outside this session range.',
+            ]);
+        }
+    }
+
+    /**
+     * @param  array{partNumber: int, etag: string, size: int}  $part
+     * @return array<int, array{partNumber: int, etag: string, size: int}>
+     */
+    private function mergeUploadedPart(UploadSession $uploadSession, array $part): array
+    {
+        $parts = collect($uploadSession->uploaded_parts ?? [])
+            ->reject(fn (array $uploadedPart): bool => (int) $uploadedPart['partNumber'] === $part['partNumber'])
+            ->push($part)
+            ->sortBy('partNumber')
+            ->values();
+
+        return $parts->all();
+    }
+
+    private function ensureAllPartsExist(UploadSession $uploadSession): void
+    {
+        $uploadedPartNumbers = collect($uploadSession->uploaded_parts ?? [])
+            ->map(fn (array $part): int => (int) $part['partNumber'])
+            ->unique()
+            ->sort()
+            ->values();
+
+        $missingParts = collect(range(1, $uploadSession->total_parts))
+            ->filter(
+                fn (int $partNumber): bool => ! $uploadedPartNumbers->contains($partNumber)
+                    || ! Storage::disk('local')->exists($this->chunkPath($uploadSession, $partNumber))
+            )
+            ->values()
+            ->all();
+
+        if ($missingParts !== []) {
+            throw ValidationException::withMessages([
+                'uploadedParts' => 'Upload is missing part(s): '.implode(', ', $missingParts).'.',
+            ]);
+        }
+    }
+
+    private function assembleSourceFile(UploadSession $uploadSession): void
+    {
+        $video = $uploadSession->video;
+
+        if ($video->source_disk === null || $video->source_path === null) {
+            throw ValidationException::withMessages([
+                'video' => 'The upload session is missing a source destination.',
+            ]);
+        }
+
+        $source = fopen('php://temp', 'w+b');
+
+        if ($source === false) {
+            throw ValidationException::withMessages([
+                'uploadSession' => 'Unable to prepare the uploaded source file.',
+            ]);
+        }
+
+        try {
+            for ($partNumber = 1; $partNumber <= $uploadSession->total_parts; $partNumber++) {
+                $chunkStream = Storage::disk('local')->readStream($this->chunkPath($uploadSession, $partNumber));
+
+                if ($chunkStream === false) {
+                    throw ValidationException::withMessages([
+                        'uploadedParts' => "Upload part {$partNumber} could not be read.",
+                    ]);
+                }
+
+                stream_copy_to_stream($chunkStream, $source);
+                fclose($chunkStream);
+            }
+
+            rewind($source);
+
+            if (! Storage::disk($video->source_disk)->put($video->source_path, $source)) {
+                throw ValidationException::withMessages([
+                    'video' => 'Unable to store the assembled source video.',
+                ]);
+            }
+        } finally {
+            fclose($source);
+        }
+    }
+
     private function sourcePath(Video $video, string $fileName): string
     {
         $extension = strtolower((string) pathinfo($fileName, PATHINFO_EXTENSION));
         $extension = preg_match('/^[a-z0-9]+$/', $extension) === 1 ? $extension : 'bin';
 
         return "videos/{$video->id}/source/original.{$extension}";
+    }
+
+    private function chunkDirectory(UploadSession $uploadSession): string
+    {
+        return "upload-sessions/{$uploadSession->id}";
+    }
+
+    private function chunkPath(UploadSession $uploadSession, int $partNumber): string
+    {
+        return $this->chunkDirectory($uploadSession)."/parts/{$partNumber}.part";
     }
 
     private function catalogSourceMedia(Video $video): void

@@ -1,4 +1,4 @@
-import { UploadFlowSkeleton } from "@/components/streamops/upload-flow-skeleton"
+import { UploadFlow } from "@/components/streamops/upload-flow-skeleton"
 
 export default function UploadPage() {
   return (
@@ -9,14 +9,14 @@ export default function UploadPage() {
             Authenticated upload
           </p>
           <h1 className="mt-3 font-heading text-3xl font-semibold">
-            Create an upload session
+            Upload a video
           </h1>
           <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-            Upload access only requires a signed-in account. This skeleton models
-            direct-to-storage multipart state without sending file bytes.
+            Send a local source video in chunks, then let StreamOps queue it for
+            processing.
           </p>
         </div>
-        <UploadFlowSkeleton />
+        <UploadFlow />
       </section>
     </main>
   )

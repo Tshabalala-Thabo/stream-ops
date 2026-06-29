@@ -3,12 +3,16 @@ import type { ApiErrorResponse } from "@/lib/types"
 export const API_URL =
   process.env.NEXT_PUBLIC_API_URL?.replace(/\/$/, "") ?? "http://localhost:8000"
 
-function getCookie(name: string) {
+export function getCookie(name: string) {
   const cookie = document.cookie
     .split("; ")
     .find((row) => row.startsWith(`${name}=`))
 
   return cookie ? decodeURIComponent(cookie.split("=")[1]) : null
+}
+
+export function getXsrfToken() {
+  return typeof document !== "undefined" ? getCookie("XSRF-TOKEN") : null
 }
 
 export class ApiError extends Error {
@@ -38,8 +42,7 @@ function createApiHeaders(initHeaders?: HeadersInit, hasBody = false): Headers {
     headers.set("Content-Type", "application/json")
   }
 
-  const xsrfToken =
-    typeof document !== "undefined" ? getCookie("XSRF-TOKEN") : null
+  const xsrfToken = getXsrfToken()
 
   if (xsrfToken && !headers.has("X-XSRF-TOKEN")) {
     headers.set("X-XSRF-TOKEN", xsrfToken)

@@ -101,6 +101,7 @@ export type UploadSession = {
   expiresAt: string | null
   createdAt: string
   updatedAt: string
+  video?: Video
 }
 
 export type VideoProcessingRun = {
