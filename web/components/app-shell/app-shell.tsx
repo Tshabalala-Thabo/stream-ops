@@ -4,7 +4,6 @@
 
 import {
   Clapperboard,
-  Component,
   LayoutDashboard,
   LogIn,
   Menu,
