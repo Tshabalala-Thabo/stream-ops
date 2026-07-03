@@ -1,6 +1,6 @@
 # StreamOps
 
-![StreamOps logo](./ChatGPT%20Image%20Jun%2024%2C%202026%2C%2003_28_16%20PM.png)
+![StreamOps logo](./web/public/logo/horizontal-light-mode.png)
 
 A cloud-native video processing platform that demonstrates scalable file uploads, object storage integration, asynchronous processing pipelines, distributed queues, and background workers.
 

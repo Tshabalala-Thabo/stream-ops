@@ -1,9 +1,10 @@
 "use client"
 
+/* eslint-disable @next/next/no-img-element */
+
 import {
   Clapperboard,
   LayoutDashboard,
-  Library,
   LogIn,
   Menu,
   Search,
@@ -178,18 +179,25 @@ export function AppShell({ children }: { children: React.ReactNode }) {
     <div className="min-h-screen bg-background text-foreground">
       <header className="sticky top-0 z-40 border-b bg-background/92 backdrop-blur supports-[backdrop-filter]:bg-background/78">
         <div className="mx-auto flex h-16 w-full max-w-7xl items-center gap-4 px-4 sm:px-6">
-          <Link href="/" className="flex min-w-0 items-center gap-3">
-            <span className="grid size-9 place-items-center rounded-md bg-gradient-brand text-brand-accent-foreground shadow-sm">
-              <Library className="size-5" />
-            </span>
-            <span className="min-w-0">
-              <span className="block font-heading text-sm font-semibold leading-4">
-                StreamOps
-              </span>
-              <span className="block truncate font-mono text-[10px] uppercase text-muted-foreground">
-                Video library
-              </span>
-            </span>
+          <Link
+            href="/"
+            className="flex h-10 min-w-0 items-center"
+            aria-label="StreamOps home"
+          >
+            <img
+              alt="StreamOps"
+              className="block h-8 w-auto dark:!hidden"
+              height={334}
+              src="/logo/horizontal-light-mode-transparent.png"
+              width={1596}
+            />
+            <img
+              alt="StreamOps"
+              className="hidden h-8 w-auto dark:!block"
+              height={337}
+              src="/logo/horizontal-dark-mode-transparent.png"
+              width={1589}
+            />
           </Link>
 
           <nav className="hidden items-center gap-1 md:flex">
@@ -205,11 +213,6 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </nav>
 
           <div className="ml-auto hidden items-center gap-2 md:flex">
-            <div className="mr-2 hidden items-center gap-2 rounded-md border bg-surface-overlay px-2.5 py-1.5 text-xs text-muted-foreground lg:flex">
-              <span className="size-1.5 rounded-full bg-brand-accent" />
-              Ready to watch
-            </div>
-
             <ThemeToggle />
 
             {isAuthenticated ? (
