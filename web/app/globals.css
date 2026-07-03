@@ -166,6 +166,7 @@
      Ready: successful completion states, playback-ready banners, and healthy pipeline summaries.
      Dark Glow: restrained atmospheric backgrounds for dark hero panels and special sections. */
   --gradient-primary: linear-gradient(135deg, #12c6b0 0%, #1565f6 100%);
+  --gradient-primary-border: linear-gradient(90deg, #12c6b0 0%, #1565f6 100%);
   --gradient-brand: linear-gradient(135deg, #35d33f 0%, #12c6b0 45%, #1565f6 100%);
   --gradient-processing: linear-gradient(90deg, #0cafd3 0%, #1565f6 100%);
   --gradient-ready: linear-gradient(135deg, #35d33f 0%, #12c6b0 100%);
@@ -256,6 +257,7 @@
      Ready: successful completion states, playback-ready banners, and healthy pipeline summaries.
      Dark Glow: restrained atmospheric backgrounds for dark hero panels and special sections. */
   --gradient-primary: linear-gradient(135deg, #12c6b0 0%, #0cafd3 48%, #1565f6 100%);
+  --gradient-primary-border: linear-gradient(90deg, #12c6b0 0%, #0cafd3 48%, #1565f6 100%);
   --gradient-brand: linear-gradient(135deg, #35d33f 0%, #12c6b0 42%, #0cafd3 100%);
   --gradient-processing: linear-gradient(90deg, #0cafd3 0%, #1565f6 100%);
   --gradient-ready: linear-gradient(135deg, #35d33f 0%, #12c6b0 100%);
@@ -321,6 +323,12 @@ body.dark .streamops-logo-dark,
   /* Use for primary CTAs only when the action should feel more important than a standard shadcn primary button. */
   .bg-gradient-primary {
     background: var(--gradient-primary);
+  }
+
+  .bg-gradient-primary-button {
+    background:
+      var(--gradient-primary) padding-box,
+      var(--gradient-primary-border) border-box;
   }
 
   /* Use for special StreamOps sections such as feature panels, onboarding headers, or polished empty states. */

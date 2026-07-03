@@ -39,7 +39,6 @@ type NavItem = {
 
 const publicNavItems: NavItem[] = [
   { href: "/", label: "Browse", icon: Clapperboard },
-  { href: "/components", label: "Components", icon: Component },
 ]
 
 const creatorNavItems: NavItem[] = [
