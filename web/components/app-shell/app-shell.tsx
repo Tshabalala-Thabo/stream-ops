@@ -4,6 +4,7 @@
 
 import {
   Clapperboard,
+  Component,
   LayoutDashboard,
   LogIn,
   Menu,
@@ -38,6 +39,7 @@ type NavItem = {
 
 const publicNavItems: NavItem[] = [
   { href: "/", label: "Browse", icon: Clapperboard },
+  { href: "/components", label: "Components", icon: Component },
 ]
 
 const creatorNavItems: NavItem[] = [
@@ -220,7 +222,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
                 <Link
                   href="/upload"
                   className={buttonVariants({
-                    className: "gap-2 bg-gradient-primary text-white shadow-sm hover:opacity-90",
+                    className: "gap-2",
                   })}
                 >
                   <UploadCloud />
