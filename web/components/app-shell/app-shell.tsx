@@ -186,14 +186,14 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           >
             <img
               alt="StreamOps"
-              className="block h-8 w-auto dark:!hidden"
+              className="streamops-logo streamops-logo-light h-8 w-auto"
               height={334}
               src="/logo/horizontal-light-mode-transparent.png"
               width={1596}
             />
             <img
               alt="StreamOps"
-              className="hidden h-8 w-auto dark:!block"
+              className="streamops-logo streamops-logo-dark h-8 w-auto"
               height={337}
               src="/logo/horizontal-dark-mode-transparent.png"
               width={1589}

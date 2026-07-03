@@ -46,9 +46,6 @@ export function PublicVideoCatalog({
     <main className="mx-auto w-full max-w-7xl px-4 py-6 text-foreground sm:px-6 lg:py-8">
       <section className="grid gap-6 lg:grid-cols-[minmax(0,1.35fr)_minmax(280px,0.65fr)]">
         <div>
-          <p className="font-mono text-xs font-medium uppercase text-muted-foreground">
-            StreamOps
-          </p>
           <h1 className="mt-3 max-w-4xl font-heading text-3xl font-semibold tracking-normal sm:text-4xl">
             Watch the latest videos
           </h1>
@@ -71,12 +68,6 @@ export function PublicVideoCatalog({
               Search
             </Button>
           </form>
-        </div>
-
-        <div className="hidden items-end justify-end lg:flex">
-          <p className="max-w-xs text-right text-sm leading-6 text-muted-foreground">
-            Public uploads that are ready to play.
-          </p>
         </div>
       </section>
 

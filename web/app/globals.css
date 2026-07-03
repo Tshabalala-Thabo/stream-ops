@@ -279,6 +279,32 @@
   --chart-5: 245 158 11;
 }
 
+.streamops-logo {
+  display: block;
+}
+
+.streamops-logo-dark {
+  display: none;
+}
+
+.streamops-logo-light {
+  display: block;
+}
+
+.dark .streamops-logo-light,
+html.dark .streamops-logo-light,
+body.dark .streamops-logo-light,
+[data-theme="dark"] .streamops-logo-light {
+  display: none !important;
+}
+
+.dark .streamops-logo-dark,
+html.dark .streamops-logo-dark,
+body.dark .streamops-logo-dark,
+[data-theme="dark"] .streamops-logo-dark {
+  display: block !important;
+}
+
 @layer base {
   * {
     @apply border-border outline-ring/50;

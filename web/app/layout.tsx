@@ -39,9 +39,9 @@ export default function RootLayout({
       <body className="min-h-full flex flex-col">
         <ThemeProvider
           attribute="class"
-          defaultTheme="light"
+          defaultTheme="system"
           disableTransitionOnChange
-          enableSystem={false}
+          enableSystem
         >
           <AuthProvider>
             <AppShell>{children}</AppShell>
