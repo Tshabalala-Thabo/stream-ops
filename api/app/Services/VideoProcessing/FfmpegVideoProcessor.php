@@ -41,7 +41,7 @@ class FfmpegVideoProcessor
         try {
             $this->copySourceToLocalPath($video, $sourcePath);
             $metadata = $this->probe($sourcePath);
-            $this->generateThumbnail($sourcePath, $thumbnailLocalPath, $metadata['durationSeconds']);
+            $thumbnailSelection = $this->generateThumbnail($sourcePath, $thumbnailLocalPath, $metadata['durationSeconds']);
             $preview = $this->generatePreviewStoryboard(
                 $video,
                 $sourcePath,
@@ -89,8 +89,51 @@ class FfmpegVideoProcessor
                     'previewSpritePath' => $preview['spritePath'],
                     'previewTrackPath' => $preview['trackPath'],
                     'previewIntervalSeconds' => $preview['intervalSeconds'],
+                    'thumbnailSelection' => $thumbnailSelection,
                 ],
             );
+        } finally {
+            File::deleteDirectory($workDirectory);
+        }
+    }
+
+    /**
+     * @return array{thumbnailPath: string, thumbnailSelection: array<string, mixed>}
+     */
+    public function regenerateThumbnail(Video $video): array
+    {
+        if ($video->source_disk === null || $video->source_path === null) {
+            throw new RuntimeException('Video source disk or path is missing.');
+        }
+
+        if (! Storage::disk($video->source_disk)->exists($video->source_path)) {
+            throw new RuntimeException('Video source file does not exist.');
+        }
+
+        $workDirectory = storage_path("app/private/streamops-processing/{$video->id}/".uniqid('', true));
+        File::ensureDirectoryExists($workDirectory);
+
+        $sourcePath = $workDirectory.'/source.'.pathinfo($video->source_path, PATHINFO_EXTENSION);
+        $thumbnailLocalPath = $workDirectory.'/default.jpg';
+
+        try {
+            $this->copySourceToLocalPath($video, $sourcePath);
+            $metadata = $this->probe($sourcePath);
+            $thumbnailSelection = $this->generateThumbnail($sourcePath, $thumbnailLocalPath, $metadata['durationSeconds']);
+            $thumbnailPath = "videos/{$video->id}/thumbnails/default.jpg";
+            $this->storeGeneratedFile($video, $thumbnailLocalPath, $thumbnailPath);
+
+            $video->update([
+                'duration_seconds' => $video->duration_seconds ?? $metadata['durationSeconds'],
+                'width' => $video->width ?? $metadata['width'],
+                'height' => $video->height ?? $metadata['height'],
+                'thumbnail_path' => $thumbnailPath,
+            ]);
+
+            return [
+                'thumbnailPath' => $thumbnailPath,
+                'thumbnailSelection' => $thumbnailSelection,
+            ];
         } finally {
             File::deleteDirectory($workDirectory);
         }
@@ -174,9 +217,63 @@ class FfmpegVideoProcessor
         ];
     }
 
-    private function generateThumbnail(string $sourcePath, string $thumbnailPath, int $durationSeconds): void
+    /**
+     * @return array{strategy: string, scanStartSeconds: float, scanDurationSeconds: float, minEntropy: float, minLuma: float, maxLuma: float, usedFallback: bool}
+     */
+    private function generateThumbnail(string $sourcePath, string $thumbnailPath, int $durationSeconds): array
     {
-        $timestamp = max(0.1, min(1.0, $durationSeconds / 2));
+        $scanStartSeconds = $this->thumbnailScanStartSeconds($durationSeconds);
+        $scanDurationSeconds = $this->thumbnailScanDurationSeconds($durationSeconds, $scanStartSeconds);
+        $sampleFps = max(0.1, (float) config('streamops.thumbnail_sample_fps', 1));
+        $minEntropy = max(0.0, (float) config('streamops.thumbnail_min_entropy', 0.08));
+        $minLuma = max(0.0, (float) config('streamops.thumbnail_min_luma', 24));
+        $maxLuma = min(255.0, (float) config('streamops.thumbnail_max_luma', 232));
+        $thumbnailFrameWindow = max(2, min(100, (int) ceil($sampleFps * $scanDurationSeconds)));
+
+        $smartProcess = new Process([
+            (string) config('streamops.ffmpeg_path', 'ffmpeg'),
+            '-y',
+            '-ss',
+            (string) $scanStartSeconds,
+            '-t',
+            (string) $scanDurationSeconds,
+            '-i',
+            $sourcePath,
+            '-an',
+            '-vf',
+            implode(',', [
+                "fps={$sampleFps}",
+                'format=yuv420p',
+                'entropy',
+                'signalstats',
+                "metadata=select:key=lavfi.entropy.normalized_entropy.normal.Y:value={$minEntropy}:function=greater",
+                "metadata=select:key=lavfi.signalstats.YAVG:value={$minLuma}:function=greater",
+                "metadata=select:key=lavfi.signalstats.YAVG:value={$maxLuma}:function=less",
+                "thumbnail={$thumbnailFrameWindow}",
+            ]),
+            '-frames:v',
+            '1',
+            '-update',
+            '1',
+            $thumbnailPath,
+        ]);
+        $smartProcess->setTimeout((int) config('streamops.processing_timeout_seconds', 300));
+        $smartProcess->run();
+
+        if ($smartProcess->isSuccessful() && is_file($thumbnailPath)) {
+            return [
+                'strategy' => 'entropy_signalstats_thumbnail',
+                'scanStartSeconds' => $scanStartSeconds,
+                'scanDurationSeconds' => $scanDurationSeconds,
+                'minEntropy' => $minEntropy,
+                'minLuma' => $minLuma,
+                'maxLuma' => $maxLuma,
+                'usedFallback' => false,
+            ];
+        }
+
+        File::delete($thumbnailPath);
+        $timestamp = max(0.1, min($durationSeconds - 0.1, $durationSeconds / 2));
         $process = new Process([
             (string) config('streamops.ffmpeg_path', 'ffmpeg'),
             '-y',
@@ -186,6 +283,8 @@ class FfmpegVideoProcessor
             $sourcePath,
             '-frames:v',
             '1',
+            '-update',
+            '1',
             $thumbnailPath,
         ]);
         $process->setTimeout((int) config('streamops.processing_timeout_seconds', 300));
@@ -194,6 +293,33 @@ class FfmpegVideoProcessor
         if (! $process->isSuccessful() || ! is_file($thumbnailPath)) {
             throw new RuntimeException(trim($process->getErrorOutput()) ?: 'ffmpeg could not generate a thumbnail.');
         }
+
+        return [
+            'strategy' => 'midpoint_fallback',
+            'scanStartSeconds' => $scanStartSeconds,
+            'scanDurationSeconds' => $scanDurationSeconds,
+            'minEntropy' => $minEntropy,
+            'minLuma' => $minLuma,
+            'maxLuma' => $maxLuma,
+            'usedFallback' => true,
+        ];
+    }
+
+    private function thumbnailScanStartSeconds(int $durationSeconds): float
+    {
+        $scanStartRatio = max(0.0, min(0.45, (float) config('streamops.thumbnail_scan_start_ratio', 0.1)));
+        $latestStartSeconds = max(0.0, $durationSeconds - 1.0);
+
+        return round(min($latestStartSeconds, max(0.0, $durationSeconds * $scanStartRatio)), 3);
+    }
+
+    private function thumbnailScanDurationSeconds(int $durationSeconds, float $scanStartSeconds): float
+    {
+        $maxScanWindowSeconds = max(1.0, (float) config('streamops.thumbnail_max_scan_window_seconds', 60));
+        $tailPaddingSeconds = min(2.0, max(0.0, $durationSeconds * 0.05));
+        $availableSeconds = max(1.0, $durationSeconds - $scanStartSeconds - $tailPaddingSeconds);
+
+        return round(min($maxScanWindowSeconds, $availableSeconds), 3);
     }
 
     /**

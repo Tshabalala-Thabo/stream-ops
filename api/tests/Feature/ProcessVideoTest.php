@@ -20,7 +20,8 @@ class ProcessVideoTest extends TestCase
     public function test_process_video_generates_metadata_thumbnail_hls_and_marks_video_ready(): void
     {
         Storage::fake('public');
-        [$ffprobePath, $ffmpegPath] = $this->createFakeFfmpegBinaries();
+        $ffmpegLogPath = storage_path('framework/testing/ffmpeg/ffmpeg.log');
+        [$ffprobePath, $ffmpegPath] = $this->createFakeFfmpegBinaries($ffmpegLogPath);
         config([
             'streamops.ffprobe_path' => $ffprobePath,
             'streamops.ffmpeg_path' => $ffmpegPath,
@@ -73,6 +74,8 @@ class ProcessVideoTest extends TestCase
         $this->assertSame("videos/{$video->id}/previews/storyboard.jpg", $processingRun->metadata['previewSpritePath']);
         $this->assertSame("videos/{$video->id}/previews/storyboard.vtt", $processingRun->metadata['previewTrackPath']);
         $this->assertSame(10, $processingRun->metadata['previewIntervalSeconds']);
+        $this->assertSame('entropy_signalstats_thumbnail', $processingRun->metadata['thumbnailSelection']['strategy']);
+        $this->assertFalse($processingRun->metadata['thumbnailSelection']['usedFallback']);
         $this->assertCount(3, $processingRun->metadata['renditions']);
         $this->assertCount(1, $video->getMedia('thumbnails'));
         $this->assertCount(1, $video->getMedia('playback_manifests'));
@@ -82,6 +85,43 @@ class ProcessVideoTest extends TestCase
             'label' => '1080p',
             'playlist_path' => "videos/{$video->id}/hls/1080p/index.m3u8",
         ]);
+
+        $ffmpegLog = File::get($ffmpegLogPath);
+        $this->assertStringContainsString('entropy', $ffmpegLog);
+        $this->assertStringContainsString('signalstats', $ffmpegLog);
+        $this->assertStringContainsString('lavfi.entropy.normalized_entropy.normal.Y', $ffmpegLog);
+        $this->assertStringContainsString('lavfi.signalstats.YAVG', $ffmpegLog);
+    }
+
+    public function test_process_video_uses_midpoint_fallback_when_smart_thumbnail_generation_fails(): void
+    {
+        Storage::fake('public');
+        $ffmpegLogPath = storage_path('framework/testing/ffmpeg/ffmpeg-fallback.log');
+        [$ffprobePath, $ffmpegPath] = $this->createFakeFfmpegBinaries($ffmpegLogPath, failSmartThumbnail: true);
+        config([
+            'streamops.ffprobe_path' => $ffprobePath,
+            'streamops.ffmpeg_path' => $ffmpegPath,
+            'streamops.media_disk' => 'public',
+        ]);
+
+        $video = Video::factory()->create([
+            'status' => VideoStatus::Queued,
+            'source_disk' => 'public',
+            'source_path' => 'videos/test-video/source/original.mp4',
+            'thumbnail_path' => null,
+        ]);
+        Storage::disk('public')->put($video->source_path, 'fake-video-bytes');
+
+        (new ProcessVideo($video))->handle(app(FfmpegVideoProcessor::class));
+
+        $video->refresh();
+        $processingRun = $video->processingRuns()->firstOrFail();
+
+        $this->assertSame(VideoStatus::Ready, $video->status);
+        $this->assertSame("videos/{$video->id}/thumbnails/default.jpg", $video->thumbnail_path);
+        $this->assertSame('midpoint_fallback', $processingRun->metadata['thumbnailSelection']['strategy']);
+        $this->assertTrue($processingRun->metadata['thumbnailSelection']['usedFallback']);
+        $this->assertStringContainsString('intentional smart thumbnail failure', File::get($ffmpegLogPath));
     }
 
     public function test_process_video_marks_video_and_run_failed_when_processing_fails(): void
@@ -130,10 +170,14 @@ class ProcessVideoTest extends TestCase
     /**
      * @return array{string, string}
      */
-    private function createFakeFfmpegBinaries(): array
+    private function createFakeFfmpegBinaries(?string $ffmpegLogPath = null, bool $failSmartThumbnail = false): array
     {
         $directory = storage_path('framework/testing/ffmpeg');
         File::ensureDirectoryExists($directory);
+
+        if ($ffmpegLogPath !== null) {
+            File::delete($ffmpegLogPath);
+        }
 
         $ffprobePath = $directory.'/ffprobe';
         $ffmpegPath = $directory.'/ffmpeg';
@@ -159,21 +203,38 @@ cat <<'JSON'
 JSON
 SH);
 
-        file_put_contents($ffmpegPath, <<<'SH'
+        $logCommand = $ffmpegLogPath === null
+            ? ':'
+            : "printf '%s\n' \"\$*\" >> ".escapeshellarg($ffmpegLogPath);
+        $smartFailureCommand = $failSmartThumbnail
+            ? <<<'SH'
+case " $* " in
+  *"entropy"*)
+    printf 'intentional smart thumbnail failure\n' >> "$log_path"
+    exit 1
+    ;;
+esac
+SH
+            : '';
+
+        file_put_contents($ffmpegPath, <<<SH
 #!/bin/sh
+log_path="{$ffmpegLogPath}"
+{$logCommand}
+{$smartFailureCommand}
 last=""
-for arg in "$@"; do
-  last="$arg"
+for arg in "\$@"; do
+  last="\$arg"
 done
-case "$last" in
+case "\$last" in
   *.jpg)
-    printf 'fake-jpeg' > "$last"
+    printf 'fake-jpeg' > "\$last"
     ;;
   *.m3u8)
-    dir=$(dirname "$last")
-    mkdir -p "$dir"
-    printf '#EXTM3U\n#EXTINF:6.0,\nsegment_000.ts\n#EXT-X-ENDLIST\n' > "$last"
-    printf 'fake-segment' > "$dir/segment_000.ts"
+    dir=\$(dirname "\$last")
+    mkdir -p "\$dir"
+    printf '#EXTM3U\n#EXTINF:6.0,\nsegment_000.ts\n#EXT-X-ENDLIST\n' > "\$last"
+    printf 'fake-segment' > "\$dir/segment_000.ts"
     ;;
 esac
 SH);

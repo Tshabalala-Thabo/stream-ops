@@ -9,4 +9,10 @@ return [
     'ffprobe_path' => env('STREAMOPS_FFPROBE_PATH', env('FFPROBE_PATH', 'ffprobe')),
     'processing_timeout_seconds' => (int) env('STREAMOPS_PROCESSING_TIMEOUT_SECONDS', 7200),
     'processing_job_timeout_seconds' => (int) env('STREAMOPS_PROCESSING_JOB_TIMEOUT_SECONDS', 14400),
+    'thumbnail_sample_fps' => (float) env('STREAMOPS_THUMBNAIL_SAMPLE_FPS', 1),
+    'thumbnail_scan_start_ratio' => (float) env('STREAMOPS_THUMBNAIL_SCAN_START_RATIO', 0.1),
+    'thumbnail_max_scan_window_seconds' => (float) env('STREAMOPS_THUMBNAIL_MAX_SCAN_WINDOW_SECONDS', 60),
+    'thumbnail_min_entropy' => (float) env('STREAMOPS_THUMBNAIL_MIN_ENTROPY', 0.08),
+    'thumbnail_min_luma' => (float) env('STREAMOPS_THUMBNAIL_MIN_LUMA', 24),
+    'thumbnail_max_luma' => (float) env('STREAMOPS_THUMBNAIL_MAX_LUMA', 232),
 ];
