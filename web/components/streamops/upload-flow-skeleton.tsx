@@ -4,7 +4,6 @@ import {
   AlertCircle,
   Ban,
   CheckCircle2,
-  Clapperboard,
   Film,
   ImageIcon,
   RotateCcw,
@@ -30,6 +29,7 @@ import type { UploadSession } from "@/lib/types"
 type UploadPhase =
   | "idle"
   | "uploading"
+  | "paused"
   | "completing"
   | "success"
   | "error"
@@ -98,75 +98,6 @@ function formatLocalDuration(durationSeconds: number | null) {
   return `${minutes}:${seconds.toString().padStart(2, "0")} long`
 }
 
-function getPhaseCopy({
-  canResume,
-  phase,
-  progress,
-}: {
-  canResume: boolean
-  phase: UploadPhase
-  progress: number
-}) {
-  if (phase === "success") {
-    return {
-      eyebrow: "Upload complete",
-      title: "Your video is in",
-      description:
-        "The upload is done. StreamOps is preparing it in the background and will make it available when processing finishes.",
-    }
-  }
-
-  if (phase === "completing") {
-    return {
-      eyebrow: "Almost there",
-      title: "Finishing your upload",
-      description:
-        "Keep this page open for a moment while StreamOps confirms the upload.",
-    }
-  }
-
-  if (phase === "uploading") {
-    return {
-      eyebrow: "Uploading",
-      title: `${progress}% uploaded`,
-      description: "Your video is uploading. You can keep working while it moves.",
-    }
-  }
-
-  if (phase === "cancelled") {
-    return {
-      eyebrow: "Cancelled",
-      title: "Upload cancelled",
-      description:
-        "Nothing was published. You can choose another video or start this upload again.",
-    }
-  }
-
-  if (phase === "error") {
-    return {
-      eyebrow: "Needs attention",
-      title: canResume ? "Ready to resume" : "Upload did not finish",
-      description: canResume
-        ? "The saved upload can continue from where it stopped."
-        : "Please check the video and try again when you are ready.",
-    }
-  }
-
-  if (canResume) {
-    return {
-      eyebrow: "Resume available",
-      title: "Pick up where you left off",
-      description: "This video matches your saved upload and can continue.",
-    }
-  }
-
-  return {
-    eyebrow: "New upload",
-    title: "Add your video",
-    description: "Choose a video, add a few details, and StreamOps will prepare it.",
-  }
-}
-
 function getPrimaryButtonLabel({
   canResume,
   phase,
@@ -180,6 +111,10 @@ function getPrimaryButtonLabel({
 
   if (phase === "uploading") {
     return "Uploading"
+  }
+
+  if (phase === "paused") {
+    return "Resume upload"
   }
 
   if (phase === "error" && !canResume) {
@@ -212,34 +147,16 @@ export function UploadFlow() {
   const abortControllerRef = React.useRef<AbortController | null>(null)
   const objectUrlRef = React.useRef<string | null>(null)
   const previewRequestRef = React.useRef(0)
+  const resumeProgressRequestRef = React.useRef(0)
+  const pauseRequestedRef = React.useRef(false)
 
   const isUploading = phase === "uploading" || phase === "completing"
   const canResume = fileMatchesDraft(selectedFile, resumeDraft)
-  const progress = selectedFile
-    ? Math.min(100, Math.round((progressBytes / selectedFile.size) * 100))
+  const progressTotalBytes = selectedFile?.size ?? resumeDraft?.fileSize ?? 0
+  const progress = progressTotalBytes
+    ? Math.min(100, Math.round((progressBytes / progressTotalBytes) * 100))
     : 0
-  const phaseCopy = getPhaseCopy({ canResume, phase, progress })
   const durationLabel = formatLocalDuration(fileDuration)
-  const statusLabel =
-    phase === "success"
-      ? "Pending processing"
-      : phase === "uploading" || phase === "completing"
-        ? "Uploading"
-        : canResume
-          ? "Resume ready"
-          : selectedFile
-            ? "Looks good"
-            : "Waiting for video"
-
-  React.useEffect(() => {
-    const draft = readResumeDraft()
-
-    if (draft) {
-      setResumeDraft(draft)
-      setTitle(draft.title)
-      setDescription(draft.description)
-    }
-  }, [])
 
   React.useEffect(() => {
     return () => {
@@ -338,6 +255,63 @@ export function UploadFlow() {
     }
   }
 
+  const applyUploadSessionProgress = React.useCallback((session: UploadSession) => {
+    const uploadedNumbers = session.uploadedParts
+      .map((part) => part.partNumber)
+      .sort((first, second) => first - second)
+    const uploadedBytes = session.uploadedParts.reduce(
+      (total, part) => total + part.size,
+      0
+    )
+
+    setActiveSession(session)
+    setUploadedPartNumbers(uploadedNumbers)
+    setProgressBytes(uploadedBytes)
+  }, [])
+
+  const refreshResumeProgress = React.useCallback(async (draft: ResumeDraft) => {
+    const requestId = resumeProgressRequestRef.current + 1
+    resumeProgressRequestRef.current = requestId
+
+    try {
+      const session = await getUploadSession(draft.uploadSessionId)
+
+      if (resumeProgressRequestRef.current !== requestId) {
+        return
+      }
+
+      if (session.status !== "active") {
+        clearResumeDraft()
+        setResumeDraft(null)
+        setActiveSession(null)
+        setUploadedPartNumbers([])
+        setProgressBytes(0)
+        return
+      }
+
+      applyUploadSessionProgress(session)
+    } catch {
+      if (resumeProgressRequestRef.current !== requestId) {
+        return
+      }
+
+      setActiveSession(null)
+      setUploadedPartNumbers([])
+      setProgressBytes(0)
+    }
+  }, [applyUploadSessionProgress])
+
+  React.useEffect(() => {
+    const draft = readResumeDraft()
+
+    if (draft) {
+      setResumeDraft(draft)
+      setTitle(draft.title)
+      setDescription(draft.description)
+      void refreshResumeProgress(draft)
+    }
+  }, [refreshResumeProgress])
+
   function handleFileChange(file: File | null) {
     setSelectedFile(file)
     setCompletedSession(null)
@@ -356,9 +330,10 @@ export function UploadFlow() {
     const draft = readResumeDraft()
     setResumeDraft(draft)
 
-    if (fileMatchesDraft(file, draft)) {
-      setTitle(draft?.title ?? "")
-      setDescription(draft?.description ?? "")
+    if (draft && fileMatchesDraft(file, draft)) {
+      setTitle(draft.title)
+      setDescription(draft.description)
+      void refreshResumeProgress(draft)
       return
     }
 
@@ -381,7 +356,10 @@ export function UploadFlow() {
     const draft = resumeDraft
 
     if (fileMatchesDraft(file, draft) && draft) {
-      const session = await getUploadSession(draft.uploadSessionId)
+      const session =
+        activeSession?.id === draft.uploadSessionId
+          ? activeSession
+          : await getUploadSession(draft.uploadSessionId)
 
       if (session.status !== "active") {
         clearResumeDraft()
@@ -433,10 +411,14 @@ export function UploadFlow() {
     const file = selectedFile
     const abortController = new AbortController()
     abortControllerRef.current = abortController
+    pauseRequestedRef.current = false
     setPhase("uploading")
     setError(null)
     setCompletedSession(null)
-    setProgressBytes(0)
+
+    if (!canResume) {
+      setProgressBytes(0)
+    }
 
     try {
       const uploadSession = await resolveUploadSession(file)
@@ -532,6 +514,21 @@ export function UploadFlow() {
       setPhase("success")
     } catch (uploadError) {
       if (uploadError instanceof DOMException && uploadError.name === "AbortError") {
+        if (pauseRequestedRef.current) {
+          const draft = readResumeDraft()
+
+          setPhase("paused")
+          setError(null)
+
+          if (draft) {
+            void refreshResumeProgress(draft)
+          } else if (activeSession) {
+            applyUploadSessionProgress(activeSession)
+          }
+
+          return
+        }
+
         setPhase("cancelled")
         setError(null)
         return
@@ -545,10 +542,19 @@ export function UploadFlow() {
       )
     } finally {
       abortControllerRef.current = null
+      pauseRequestedRef.current = false
     }
   }
 
+  function pauseUpload() {
+    pauseRequestedRef.current = true
+    abortControllerRef.current?.abort()
+    setPhase("paused")
+    setError(null)
+  }
+
   async function cancelUpload() {
+    pauseRequestedRef.current = false
     abortControllerRef.current?.abort()
 
     const sessionToAbort = activeSession ?? resumeDraft
@@ -599,29 +605,8 @@ export function UploadFlow() {
   }
 
   return (
-    <form className="mx-auto max-w-5xl" onSubmit={handleSubmit}>
-      <section className="overflow-hidden rounded-lg border bg-surface shadow-sm">
-        <div className="border-b bg-gradient-dark-glow px-5 py-5 sm:px-6">
-          <div className="flex flex-wrap items-center gap-3">
-            <span className="inline-flex items-center gap-2 rounded-full border bg-background/80 px-3 py-1 text-xs font-medium text-info-dark dark:text-info">
-              <Clapperboard className="size-3.5" />
-              {phaseCopy.eyebrow}
-            </span>
-            {selectedFile && (
-              <span className="inline-flex items-center gap-2 rounded-full bg-success-light px-3 py-1 text-xs font-medium text-success-dark dark:text-success-dark">
-                <CheckCircle2 className="size-3.5" />
-                {statusLabel}
-              </span>
-            )}
-          </div>
-          <h2 className="mt-4 font-heading text-2xl font-semibold tracking-normal sm:text-3xl">
-            {phaseCopy.title}
-          </h2>
-          <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-            {phaseCopy.description}
-          </p>
-        </div>
-
+    <form className="max-w-5xl" onSubmit={handleSubmit}>
+      <section className="rounded-lg border bg-surface shadow-sm">
         <div className="grid gap-6 p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_320px]">
           <div className="space-y-5">
             {!selectedFile ? (
@@ -778,15 +763,21 @@ export function UploadFlow() {
               </h3>
               <p className="mt-2 text-sm leading-6 text-muted-foreground">
                 {phase === "idle" && !selectedFile
-                  ? "Choose a video to get started."
+                  ? activeSession && resumeDraft
+                    ? "Choose the same video to continue from saved progress."
+                    : "Choose a video to get started."
                   : phase === "success"
                     ? "Upload complete. Processing is pending."
                     : phase === "cancelled"
                       ? "The upload was cancelled."
                       : phase === "error"
                         ? "The upload needs your attention."
+                        : phase === "paused"
+                          ? "Paused. Resume when you are ready."
                         : isUploading
                           ? "Upload in progress."
+                          : canResume && progress > 0
+                            ? "Ready to continue from saved progress."
                           : "Everything looks ready."}
               </p>
               <div className="mt-4">
@@ -797,8 +788,12 @@ export function UploadFlow() {
                       ? "Done"
                       : phase === "cancelled"
                         ? "Cancelled"
+                        : phase === "paused"
+                          ? "Paused"
                         : isUploading
                           ? "Uploading"
+                          : canResume && progress > 0
+                            ? "Saved"
                           : "Ready"}
                   </span>
                 </div>
@@ -862,6 +857,17 @@ export function UploadFlow() {
                   <UploadCloud className="size-4" />
                   {getPrimaryButtonLabel({ canResume, phase })}
                 </Button>
+                {isUploading && (
+                  <Button
+                    className="w-full"
+                    onClick={pauseUpload}
+                    type="button"
+                    variant="outline"
+                  >
+                    <Ban className="size-4" />
+                    Pause upload
+                  </Button>
+                )}
                 {(isUploading || activeSession || resumeDraft) && (
                   <Button
                     className="w-full"

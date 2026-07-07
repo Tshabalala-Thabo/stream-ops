@@ -11,6 +11,7 @@ import {
 import Link from "next/link"
 import * as React from "react"
 
+import { CreatorPageHeader } from "@/components/streamops/creator-page-header"
 import { PipelineTimeline } from "@/components/streamops/pipeline-timeline"
 import { StatusChip } from "@/components/streamops/status-chip"
 import { formatUpdatedAt } from "@/components/streamops/video-format"
@@ -113,29 +114,22 @@ export default function DashboardPage() {
   return (
     <main className="min-h-screen bg-background px-4 py-8 text-foreground sm:px-6">
       <section className="mx-auto max-w-7xl">
-        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="font-mono text-xs font-medium uppercase text-muted-foreground">
-              Creator dashboard
-            </p>
-            <h1 className="mt-3 font-heading text-3xl font-semibold">
-              Upload and processing workspace
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Track your uploaded videos from browser upload through queued
-              processing and playback readiness.
-            </p>
-          </div>
-          <Link
-            className={buttonVariants({
-              className: "gap-2 bg-gradient-primary text-white",
-            })}
-            href="/upload"
-          >
-            <UploadCloud />
-            Create upload
-          </Link>
-        </div>
+        <CreatorPageHeader
+          actions={
+            <Link
+              className={buttonVariants({
+                className: "gap-2 bg-gradient-primary text-white",
+              })}
+              href="/upload"
+            >
+              <UploadCloud />
+              Create upload
+            </Link>
+          }
+          description="Track your uploaded videos from browser upload through queued processing and playback readiness."
+          eyebrow="Creator dashboard"
+          title="Upload and processing workspace"
+        />
 
         {error && (
           <section className="mt-6 rounded-lg border border-destructive-border bg-destructive-light p-4 text-destructive-dark">

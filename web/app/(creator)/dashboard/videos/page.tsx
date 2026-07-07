@@ -4,6 +4,7 @@ import { AlertCircle, ExternalLink, RotateCcw } from "lucide-react"
 import Link from "next/link"
 import * as React from "react"
 
+import { CreatorPageHeader } from "@/components/streamops/creator-page-header"
 import { StatusChip } from "@/components/streamops/status-chip"
 import {
   formatDuration,
@@ -66,23 +67,16 @@ export default function DashboardVideosPage() {
   return (
     <main className="min-h-screen bg-background px-4 py-8 text-foreground sm:px-6">
       <section className="mx-auto max-w-7xl">
-        <div className="flex flex-col gap-4 md:flex-row md:items-end md:justify-between">
-          <div>
-            <p className="font-mono text-xs font-medium uppercase text-muted-foreground">
-              Creator videos
-            </p>
-            <h1 className="mt-3 font-heading text-3xl font-semibold">
-              Management table
-            </h1>
-            <p className="mt-2 max-w-2xl text-sm leading-6 text-muted-foreground">
-              Real uploaded video records with processing state, source paths,
-              manifest readiness, and operational actions.
-            </p>
-          </div>
-          <Link className={buttonVariants({ variant: "outline" })} href="/videos">
-            Public catalog
-          </Link>
-        </div>
+        <CreatorPageHeader
+          actions={
+            <Link className={buttonVariants({ variant: "outline" })} href="/videos">
+              Public catalog
+            </Link>
+          }
+          description="Real uploaded video records with processing state, source paths, manifest readiness, and operational actions."
+          eyebrow="Creator videos"
+          title="Management table"
+        />
 
         {error && (
           <section className="mt-6 rounded-lg border border-destructive-border bg-destructive-light p-4 text-destructive-dark">
