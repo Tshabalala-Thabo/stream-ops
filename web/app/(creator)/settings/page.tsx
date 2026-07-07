@@ -3,7 +3,7 @@ import { AccountSettings } from "@/components/streamops/account-settings"
 
 export default function SettingsPage() {
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main className="min-h-[calc(100vh-4rem)] bg-background text-foreground">
       <section className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
         <CreatorPageHeader
           className="mb-6"

@@ -71,6 +71,10 @@ const metricCards = [
   },
 ]
 
+function canRetryVideoProcessing(video: Video) {
+  return video.status === "failed" && Boolean(video.sourceDisk && video.sourcePath)
+}
+
 export default function DashboardPage() {
   const [data, setData] = React.useState<DashboardData>({
     videos: [],
@@ -118,8 +122,8 @@ export default function DashboardPage() {
   }, [])
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
-      <section className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
+    <main className="min-h-[calc(100vh-4rem)] bg-background text-foreground lg:h-[calc(100vh-4rem)] lg:overflow-hidden">
+      <section className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-7xl flex-col px-4 py-8 sm:px-6 lg:h-full lg:min-h-0">
         <CreatorPageHeader
           actions={
             <Link
@@ -138,7 +142,7 @@ export default function DashboardPage() {
         />
 
         {error && (
-          <section className="mt-6 rounded-lg border border-destructive-border bg-destructive-light p-4 text-destructive-dark">
+          <section className="mt-6 shrink-0 rounded-lg border border-destructive-border bg-destructive-light p-4 text-destructive-dark">
             <div className="flex gap-3">
               <AlertCircle className="mt-0.5 size-5 shrink-0" />
               <p className="text-sm font-medium">{error}</p>
@@ -146,7 +150,7 @@ export default function DashboardPage() {
           </section>
         )}
 
-        <section className="mt-6 rounded-lg bg-gradient-processing p-4 text-white shadow-sm">
+        <section className="mt-6 shrink-0 rounded-lg bg-gradient-processing p-4 text-white shadow-sm">
           <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
               <p className="font-heading text-sm font-semibold">
@@ -187,9 +191,12 @@ export default function DashboardPage() {
           </div>
         </section>
 
-        <section className="mt-6 rounded-lg border bg-surface" id="videos">
+        <section
+          className="mt-6 min-h-0 overflow-hidden rounded-lg border bg-surface lg:flex-1 lg:overflow-y-auto"
+          id="videos"
+        >
           <Table>
-            <TableHeader>
+            <TableHeader className="sticky top-0 z-10 bg-surface shadow-[0_1px_0_rgb(var(--border))]">
               <TableRow>
                 <TableHead>Video</TableHead>
                 <TableHead>Status</TableHead>
@@ -256,18 +263,19 @@ export default function DashboardPage() {
                     </TableCell>
                     <TableCell>
                       <div className="flex justify-end gap-2">
-                        <button
-                          className={buttonVariants({
-                            className: "gap-2",
-                            size: "sm",
-                            variant: "outline",
-                          })}
-                          disabled
-                          type="button"
-                        >
-                          <RotateCcw />
-                          Retry
-                        </button>
+                        {canRetryVideoProcessing(video) && (
+                          <Link
+                            className={buttonVariants({
+                              className: "gap-2",
+                              size: "sm",
+                              variant: "outline",
+                            })}
+                            href={`/dashboard/videos/${video.id}`}
+                          >
+                            <RotateCcw />
+                            Retry
+                          </Link>
+                        )}
                         <Link
                           className={buttonVariants({
                             className: "gap-2",

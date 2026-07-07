@@ -158,7 +158,7 @@ export default function DashboardVideoDetailPage() {
 
   if (isLoading) {
     return (
-      <main className="min-h-screen bg-background text-foreground">
+      <main className="min-h-[calc(100vh-4rem)] bg-background text-foreground">
         <section className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
           <Skeleton className="h-10 w-80" />
           <Skeleton className="mt-4 h-20 w-full" />
@@ -170,7 +170,7 @@ export default function DashboardVideoDetailPage() {
 
   if (error || !data) {
     return (
-      <main className="min-h-screen bg-background text-foreground">
+      <main className="min-h-[calc(100vh-4rem)] bg-background text-foreground">
         <section className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
           <div className="rounded-lg border border-destructive-border bg-destructive-light p-4 text-destructive-dark">
             <div className="flex gap-3">
@@ -187,10 +187,10 @@ export default function DashboardVideoDetailPage() {
 
   const { video, uploadSessions, processingRuns, renditions } = data
   const canRetryProcessing =
-    video.status !== "ready" && Boolean(video.sourceDisk && video.sourcePath)
+    video.status === "failed" && Boolean(video.sourceDisk && video.sourcePath)
 
   return (
-    <main className="min-h-screen bg-background text-foreground">
+    <main className="min-h-[calc(100vh-4rem)] bg-background text-foreground">
       <section className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
         <CreatorPageHeader
           actions={
