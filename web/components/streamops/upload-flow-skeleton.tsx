@@ -605,9 +605,9 @@ export function UploadFlow() {
   }
 
   return (
-    <form className="max-w-5xl" onSubmit={handleSubmit}>
-      <section className="rounded-lg border bg-surface shadow-sm">
-        <div className="grid gap-6 p-5 sm:p-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+    <form className="w-full" onSubmit={handleSubmit}>
+      <section>
+        <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_360px]">
           <div className="space-y-5">
             {!selectedFile ? (
               <label

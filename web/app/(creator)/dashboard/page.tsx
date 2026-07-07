@@ -112,8 +112,8 @@ export default function DashboardPage() {
   const latestUploadSession = data.uploadSessions[0]
 
   return (
-    <main className="min-h-screen bg-background px-4 py-8 text-foreground sm:px-6">
-      <section className="mx-auto max-w-7xl">
+    <main className="min-h-screen bg-background text-foreground">
+      <section className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
         <CreatorPageHeader
           actions={
             <Link

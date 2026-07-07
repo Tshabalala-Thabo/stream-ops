@@ -3,8 +3,8 @@ import { UploadFlow } from "@/components/streamops/upload-flow-skeleton"
 
 export default function UploadPage() {
   return (
-    <main className="min-h-screen bg-background px-4 py-8 text-foreground sm:px-6">
-      <section className="mx-auto max-w-7xl">
+    <main className="min-h-screen bg-background text-foreground">
+      <section className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
         <CreatorPageHeader
           className="mb-6"
           description="Add your video and a few details. StreamOps will prepare it after the upload finishes."

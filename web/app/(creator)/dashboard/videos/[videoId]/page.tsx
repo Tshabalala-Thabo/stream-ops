@@ -157,8 +157,8 @@ export default function DashboardVideoDetailPage() {
 
   if (isLoading) {
     return (
-      <main className="min-h-screen bg-background px-4 py-8 text-foreground sm:px-6">
-        <section className="mx-auto max-w-7xl">
+      <main className="min-h-screen bg-background text-foreground">
+        <section className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
           <Skeleton className="h-10 w-80" />
           <Skeleton className="mt-4 h-20 w-full" />
           <Skeleton className="mt-6 h-40 w-full" />
@@ -169,13 +169,15 @@ export default function DashboardVideoDetailPage() {
 
   if (error || !data) {
     return (
-      <main className="min-h-screen bg-background px-4 py-8 text-foreground sm:px-6">
-        <section className="mx-auto max-w-7xl rounded-lg border border-destructive-border bg-destructive-light p-4 text-destructive-dark">
-          <div className="flex gap-3">
-            <AlertCircle className="mt-0.5 size-5 shrink-0" />
-            <p className="text-sm font-medium">
-              {error ?? "This video could not be found."}
-            </p>
+      <main className="min-h-screen bg-background text-foreground">
+        <section className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
+          <div className="rounded-lg border border-destructive-border bg-destructive-light p-4 text-destructive-dark">
+            <div className="flex gap-3">
+              <AlertCircle className="mt-0.5 size-5 shrink-0" />
+              <p className="text-sm font-medium">
+                {error ?? "This video could not be found."}
+              </p>
+            </div>
           </div>
         </section>
       </main>
@@ -187,8 +189,8 @@ export default function DashboardVideoDetailPage() {
     video.status !== "ready" && Boolean(video.sourceDisk && video.sourcePath)
 
   return (
-    <main className="min-h-screen bg-background px-4 py-8 text-foreground sm:px-6">
-      <section className="mx-auto max-w-7xl">
+    <main className="min-h-screen bg-background text-foreground">
+      <section className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
         <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
           <div>
             <p className="font-mono text-xs font-medium uppercase text-muted-foreground">
