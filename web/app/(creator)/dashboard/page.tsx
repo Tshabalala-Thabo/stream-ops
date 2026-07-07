@@ -5,6 +5,8 @@ import {
   AlertCircle,
   CheckCircle2,
   Clock3,
+  ExternalLink,
+  RotateCcw,
   UploadCloud,
   XCircle,
 } from "lucide-react"
@@ -14,9 +16,21 @@ import * as React from "react"
 import { CreatorPageHeader } from "@/components/streamops/creator-page-header"
 import { PipelineTimeline } from "@/components/streamops/pipeline-timeline"
 import { StatusChip } from "@/components/streamops/status-chip"
-import { formatUpdatedAt } from "@/components/streamops/video-format"
+import {
+  formatDuration,
+  formatResolution,
+  formatUpdatedAt,
+} from "@/components/streamops/video-format"
 import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table"
 import { getMyUploadSessions, getMyVideos } from "@/lib/api/videos"
 import type { UploadSession, Video } from "@/lib/types"
 
@@ -198,50 +212,118 @@ export default function DashboardPage() {
           </section>
         </div>
 
-        <section className="mt-6 rounded-lg border bg-surface">
+        <section className="mt-6 rounded-lg border bg-surface" id="videos">
           <div className="flex items-center justify-between gap-4 border-b p-4">
-            <h2 className="font-heading text-sm font-semibold">Recent videos</h2>
+            <div>
+              <h2 className="font-heading text-sm font-semibold">Videos</h2>
+              <p className="mt-1 text-sm text-muted-foreground">
+                Manage uploaded videos, processing state, and readiness from the
+                dashboard.
+              </p>
+            </div>
             <Link
               className={buttonVariants({ size: "sm", variant: "outline" })}
-              href="/dashboard/videos"
+              href="/videos"
             >
-              View all
+              Public catalog
             </Link>
           </div>
-          <div className="divide-y">
-            {isLoading &&
-              Array.from({ length: 4 }).map((_, index) => (
-                <div className="grid gap-3 p-4 md:grid-cols-[1fr_auto_auto]" key={index}>
-                  <Skeleton className="h-10 w-full" />
-                  <Skeleton className="h-7 w-20" />
-                  <Skeleton className="h-4 w-24" />
-                </div>
-              ))}
-            {!isLoading && data.videos.length === 0 && (
-              <div className="p-6 text-sm text-muted-foreground">
-                No videos yet. Start an upload to create your first source video.
-              </div>
-            )}
-            {!isLoading &&
-              data.videos.slice(0, 5).map((video) => (
-                <Link
-                  className="grid gap-3 p-4 text-sm transition-colors hover:bg-muted/50 md:grid-cols-[1fr_auto_auto]"
-                  href={`/dashboard/videos/${video.id}`}
-                  key={video.id}
-                >
-                  <div className="min-w-0">
-                    <p className="truncate font-medium">{video.title}</p>
-                    <p className="mt-1 truncate font-mono text-xs text-muted-foreground">
-                      {video.sourcePath ?? video.id}
-                    </p>
-                  </div>
-                  <StatusChip status={video.status} />
-                  <span className="font-mono text-xs text-muted-foreground">
-                    {formatUpdatedAt(video.updatedAt)}
-                  </span>
-                </Link>
-              ))}
-          </div>
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>Video</TableHead>
+                <TableHead>Status</TableHead>
+                <TableHead>Duration</TableHead>
+                <TableHead>Resolution</TableHead>
+                <TableHead>Manifest</TableHead>
+                <TableHead className="text-right">Actions</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {isLoading &&
+                Array.from({ length: 5 }).map((_, index) => (
+                  <TableRow key={index}>
+                    <TableCell>
+                      <Skeleton className="h-10 w-full" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-7 w-20" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-14" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-28" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="h-4 w-16" />
+                    </TableCell>
+                    <TableCell>
+                      <Skeleton className="ml-auto h-9 w-28" />
+                    </TableCell>
+                  </TableRow>
+                ))}
+              {!isLoading && data.videos.length === 0 && (
+                <TableRow>
+                  <TableCell className="text-muted-foreground" colSpan={6}>
+                    No videos yet. Upload a source video to start tracking it here.
+                  </TableCell>
+                </TableRow>
+              )}
+              {!isLoading &&
+                data.videos.map((video) => (
+                  <TableRow key={video.id}>
+                    <TableCell>
+                      <div className="min-w-0">
+                        <p className="font-medium">{video.title}</p>
+                        <p className="mt-1 max-w-md truncate font-mono text-xs text-muted-foreground">
+                          {video.sourcePath ?? video.id}
+                        </p>
+                        <p className="mt-1 text-xs text-muted-foreground">
+                          Updated {formatUpdatedAt(video.updatedAt)}
+                        </p>
+                      </div>
+                    </TableCell>
+                    <TableCell>
+                      <StatusChip status={video.status} />
+                    </TableCell>
+                    <TableCell>{formatDuration(video.durationSeconds)}</TableCell>
+                    <TableCell>{formatResolution(video)}</TableCell>
+                    <TableCell>
+                      <span className="font-mono text-xs text-muted-foreground">
+                        {video.playbackManifestPath ? "ready" : "pending"}
+                      </span>
+                    </TableCell>
+                    <TableCell>
+                      <div className="flex justify-end gap-2">
+                        <button
+                          className={buttonVariants({
+                            className: "gap-2",
+                            size: "sm",
+                            variant: "outline",
+                          })}
+                          disabled
+                          type="button"
+                        >
+                          <RotateCcw />
+                          Retry
+                        </button>
+                        <Link
+                          className={buttonVariants({
+                            className: "gap-2",
+                            size: "sm",
+                          })}
+                          href={`/dashboard/videos/${video.id}`}
+                        >
+                          <ExternalLink />
+                          Open
+                        </Link>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                ))}
+            </TableBody>
+          </Table>
         </section>
       </section>
     </main>

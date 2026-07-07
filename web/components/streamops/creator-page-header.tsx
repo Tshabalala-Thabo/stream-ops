@@ -1,4 +1,6 @@
 import type { ReactNode } from "react"
+import { ArrowLeft } from "lucide-react"
+import Link from "next/link"
 
 import { cn } from "@/lib/utils"
 
@@ -7,11 +9,15 @@ type CreatorPageHeaderProps = {
   title: string
   description?: string
   actions?: ReactNode
+  backHref?: string
+  backLabel?: string
   className?: string
 }
 
 export function CreatorPageHeader({
   actions,
+  backHref,
+  backLabel = "Back",
   className,
   description,
   eyebrow,
@@ -25,6 +31,15 @@ export function CreatorPageHeader({
       )}
     >
       <div>
+        {backHref && (
+          <Link
+            className="mb-4 inline-flex items-center gap-2 text-sm font-medium text-muted-foreground transition-colors hover:text-foreground"
+            href={backHref}
+          >
+            <ArrowLeft className="size-4" />
+            {backLabel}
+          </Link>
+        )}
         <p className="font-mono text-xs font-medium uppercase text-muted-foreground">
           {eyebrow}
         </p>

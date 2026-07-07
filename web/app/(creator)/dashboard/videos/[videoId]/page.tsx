@@ -5,6 +5,7 @@ import { useParams } from "next/navigation"
 import * as React from "react"
 
 import { CopyButton } from "@/components/streamops/copy-button"
+import { CreatorPageHeader } from "@/components/streamops/creator-page-header"
 import { PipelineTimeline } from "@/components/streamops/pipeline-timeline"
 import { RenditionList } from "@/components/streamops/rendition-list"
 import { StatusChip } from "@/components/streamops/status-chip"
@@ -191,35 +192,36 @@ export default function DashboardVideoDetailPage() {
   return (
     <main className="min-h-screen bg-background text-foreground">
       <section className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
-        <div className="grid gap-6 lg:grid-cols-[1fr_360px]">
-          <div>
-            <p className="font-mono text-xs font-medium uppercase text-muted-foreground">
-              Creator video detail
-            </p>
-            <div className="mt-3 flex flex-wrap items-center gap-3">
-              <h1 className="font-heading text-3xl font-semibold">{video.title}</h1>
-              <StatusChip status={video.status} />
+        <CreatorPageHeader
+          actions={
+            <div className="rounded-lg border bg-surface p-4">
+              <p className="font-heading text-sm font-semibold">Quick actions</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                <button
+                  className={buttonVariants({
+                    className: "gap-2",
+                    variant: "outline",
+                  })}
+                  disabled={!canRetryProcessing || isRetrying}
+                  onClick={handleRetryProcessing}
+                  type="button"
+                >
+                  <RotateCcw />
+                  {isRetrying ? "Retrying" : "Retry processing"}
+                </button>
+                <CopyButton label="Copy source" value={video.sourcePath} />
+              </div>
             </div>
-            <p className="mt-2 max-w-3xl text-sm leading-6 text-muted-foreground">
-              {video.description ?? "No description provided."}
-            </p>
-          </div>
+          }
+          backHref="/dashboard#videos"
+          backLabel="Back to dashboard"
+          description={video.description ?? "No description provided."}
+          eyebrow="Creator video detail"
+          title={video.title}
+        />
 
-          <div className="rounded-lg border bg-surface p-4">
-            <p className="font-heading text-sm font-semibold">Quick actions</p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              <button
-                className={buttonVariants({ className: "gap-2", variant: "outline" })}
-                disabled={!canRetryProcessing || isRetrying}
-                onClick={handleRetryProcessing}
-                type="button"
-              >
-                <RotateCcw />
-                {isRetrying ? "Retrying" : "Retry processing"}
-              </button>
-              <CopyButton label="Copy source" value={video.sourcePath} />
-            </div>
-          </div>
+        <div className="mt-3">
+          <StatusChip status={video.status} />
         </div>
 
         {video.processingError && (
