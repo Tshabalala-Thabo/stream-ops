@@ -14,7 +14,6 @@ import Link from "next/link"
 import * as React from "react"
 
 import { CreatorPageHeader } from "@/components/streamops/creator-page-header"
-import { PipelineTimeline } from "@/components/streamops/pipeline-timeline"
 import { StatusChip } from "@/components/streamops/status-chip"
 import {
   formatDuration,
@@ -118,13 +117,6 @@ export default function DashboardPage() {
     }
   }, [])
 
-  const activeVideo =
-    data.videos.find((video) => video.status === "processing") ??
-    data.videos.find((video) => video.status === "queued") ??
-    data.videos.find((video) => video.status === "ready") ??
-    data.videos[0]
-  const latestUploadSession = data.uploadSessions[0]
-
   return (
     <main className="min-h-screen bg-background text-foreground">
       <section className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
@@ -154,80 +146,48 @@ export default function DashboardPage() {
           </section>
         )}
 
-        <div className="mt-6 grid gap-4 md:grid-cols-5">
-          {metricCards.map((metric) => {
-            const Icon = metric.icon
-
-            return (
-              <div className="rounded-lg border bg-surface p-4" key={metric.label}>
-                <Icon className="size-4 text-primary" />
-                {isLoading ? (
-                  <Skeleton className="mt-4 h-9 w-16" />
-                ) : (
-                  <p className="mt-4 text-3xl font-semibold">
-                    {metric.getValue(data)}
-                  </p>
-                )}
-                <p className="text-sm text-muted-foreground">{metric.label}</p>
-              </div>
-            )
-          })}
-        </div>
-
-        <div className="mt-6 grid gap-6 lg:grid-cols-[1fr_380px]">
-          {activeVideo ? (
-            <PipelineTimeline
-              className="bg-gradient-processing text-white [&_.text-muted-foreground]:text-white/70"
-              status={activeVideo.status}
-            />
-          ) : (
-            <section className="rounded-lg border bg-surface p-4">
-              <p className="font-heading text-sm font-semibold">
-                Pipeline timeline
-              </p>
-              <p className="mt-2 text-sm text-muted-foreground">
-                Upload a video to see processing progress here.
-              </p>
-            </section>
-          )}
-
-          <section className="rounded-lg border bg-gradient-ready p-4 text-brand-accent-foreground">
-            <p className="font-heading text-sm font-semibold">Latest upload</p>
-            {latestUploadSession ? (
-              <>
-                <div className="mt-3 flex items-center gap-2">
-                  <StatusChip status={latestUploadSession.status} />
-                  <span className="font-mono text-xs">
-                    {latestUploadSession.uploadedParts.length}/
-                    {latestUploadSession.totalParts} parts
-                  </span>
-                </div>
-                <p className="mt-3 truncate font-mono text-xs">
-                  {latestUploadSession.objectKey}
-                </p>
-              </>
-            ) : (
-              <p className="mt-3 text-sm">No upload sessions yet.</p>
-            )}
-          </section>
-        </div>
-
-        <section className="mt-6 rounded-lg border bg-surface" id="videos">
-          <div className="flex items-center justify-between gap-4 border-b p-4">
+        <section className="mt-6 rounded-lg bg-gradient-processing p-4 text-white shadow-sm">
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-end sm:justify-between">
             <div>
-              <h2 className="font-heading text-sm font-semibold">Videos</h2>
-              <p className="mt-1 text-sm text-muted-foreground">
-                Manage uploaded videos, processing state, and readiness from the
-                dashboard.
+              <p className="font-heading text-sm font-semibold">
+                Operations summary
+              </p>
+              <p className="mt-1 text-sm text-white/75">
+                Upload volume, processing health, and playback readiness at a glance.
               </p>
             </div>
-            <Link
-              className={buttonVariants({ size: "sm", variant: "outline" })}
-              href="/videos"
-            >
-              Public catalog
-            </Link>
+            <span className="font-mono text-xs text-white/70">
+              {isLoading ? "Loading..." : `${data.videos.length} total videos`}
+            </span>
           </div>
+
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            {metricCards.map((metric) => {
+              const Icon = metric.icon
+
+              return (
+                <div
+                  className="rounded-md border border-white/20 bg-white/12 p-4 backdrop-blur"
+                  key={metric.label}
+                >
+                  <div className="flex items-center justify-between gap-3">
+                    <Icon className="size-4 text-white/85" />
+                    <span className="text-xs text-white/65">{metric.label}</span>
+                  </div>
+                  {isLoading ? (
+                    <Skeleton className="mt-4 h-9 w-16 bg-white/20" />
+                  ) : (
+                    <p className="mt-4 text-3xl font-semibold">
+                      {metric.getValue(data)}
+                    </p>
+                  )}
+                </div>
+              )
+            })}
+          </div>
+        </section>
+
+        <section className="mt-6 rounded-lg border bg-surface" id="videos">
           <Table>
             <TableHeader>
               <TableRow>
