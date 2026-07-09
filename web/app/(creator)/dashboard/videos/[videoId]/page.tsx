@@ -1,15 +1,20 @@
 "use client"
 
-import { AlertCircle, RotateCcw } from "lucide-react"
+import { AlertCircle, Clock3, Film, Gauge, RotateCcw } from "lucide-react"
 import { useParams } from "next/navigation"
 import * as React from "react"
 
-import { CopyButton } from "@/components/streamops/copy-button"
 import { CreatorPageHeader } from "@/components/streamops/creator-page-header"
 import { PipelineTimeline } from "@/components/streamops/pipeline-timeline"
 import { RenditionList } from "@/components/streamops/rendition-list"
 import { StatusChip } from "@/components/streamops/status-chip"
-import { formatBytes, formatUpdatedAt } from "@/components/streamops/video-format"
+import { StreamOpsPlayer } from "@/components/streamops/streamops-player"
+import {
+  formatBytes,
+  formatDuration,
+  formatResolution,
+  formatUpdatedAt,
+} from "@/components/streamops/video-format"
 import { buttonVariants } from "@/components/ui/button"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
@@ -186,32 +191,38 @@ export default function DashboardVideoDetailPage() {
   }
 
   const { video, uploadSessions, processingRuns, renditions } = data
+  const isReady = video.status === "ready"
+  const canPlayReadyVideo = isReady && Boolean(video.playbackManifestUrl)
+  const shouldShowPipeline = !isReady || !canPlayReadyVideo
   const canRetryProcessing =
-    video.status === "failed" && Boolean(video.sourceDisk && video.sourcePath)
+    shouldShowPipeline &&
+    video.status === "failed" &&
+    Boolean(video.sourceDisk && video.sourcePath)
 
   return (
     <main className="min-h-[calc(100vh-4rem)] bg-background text-foreground">
       <section className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
         <CreatorPageHeader
           actions={
-            <div className="rounded-lg border bg-surface p-4">
-              <p className="font-heading text-sm font-semibold">Quick actions</p>
-              <div className="mt-4 flex flex-wrap gap-2">
-                <button
-                  className={buttonVariants({
-                    className: "gap-2",
-                    variant: "outline",
-                  })}
-                  disabled={!canRetryProcessing || isRetrying}
-                  onClick={handleRetryProcessing}
-                  type="button"
-                >
-                  <RotateCcw />
-                  {isRetrying ? "Retrying" : "Retry processing"}
-                </button>
-                <CopyButton label="Copy source" value={video.sourcePath} />
+            shouldShowPipeline ? (
+              <div className="rounded-lg border bg-surface p-4">
+                <p className="font-heading text-sm font-semibold">Quick actions</p>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <button
+                    className={buttonVariants({
+                      className: "gap-2",
+                      variant: "outline",
+                    })}
+                    disabled={!canRetryProcessing || isRetrying}
+                    onClick={handleRetryProcessing}
+                    type="button"
+                  >
+                    <RotateCcw />
+                    {isRetrying ? "Retrying" : "Retry processing"}
+                  </button>
+                </div>
               </div>
-            </div>
+            ) : undefined
           }
           backHref="/dashboard#videos"
           backLabel="Back to dashboard"
@@ -224,7 +235,7 @@ export default function DashboardVideoDetailPage() {
           <StatusChip status={video.status} />
         </div>
 
-        {video.processingError && (
+        {video.processingError && shouldShowPipeline && (
           <section className="mt-6 rounded-lg border border-destructive-border bg-destructive-light p-4 text-destructive-dark">
             <div className="flex gap-3">
               <AlertCircle className="mt-0.5 size-5 shrink-0" />
@@ -236,108 +247,164 @@ export default function DashboardVideoDetailPage() {
           </section>
         )}
 
-        <div className="mt-6">
-          <PipelineTimeline status={video.status} />
-        </div>
+        {canPlayReadyVideo ? (
+          <>
+            <section className="mt-6 grid gap-6 lg:grid-cols-[minmax(0,1fr)_320px]">
+              <div className="min-w-0">
+                <StreamOpsPlayer renditions={renditions} video={video} />
+              </div>
 
-        <div className="mt-6 grid gap-6 lg:grid-cols-2">
-          <section className="rounded-lg border bg-surface">
-            <div className="border-b p-4">
-              <h2 className="font-heading text-sm font-semibold">Upload sessions</h2>
+              <aside className="rounded-lg border bg-surface p-4">
+                <h2 className="font-heading text-sm font-semibold">Video details</h2>
+                <div className="mt-4 grid gap-3">
+                  <div className="flex items-start gap-3 rounded-md bg-surface-overlay p-3">
+                    <Clock3 className="mt-0.5 size-4 text-primary" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Uploaded</p>
+                      <p className="text-sm font-medium">
+                        {formatUpdatedAt(video.createdAt)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 rounded-md bg-surface-overlay p-3">
+                    <Film className="mt-0.5 size-4 text-primary" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Duration</p>
+                      <p className="text-sm font-medium">
+                        {formatDuration(video.durationSeconds)}
+                      </p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-3 rounded-md bg-surface-overlay p-3">
+                    <Gauge className="mt-0.5 size-4 text-primary" />
+                    <div>
+                      <p className="text-xs text-muted-foreground">Playback</p>
+                      <p className="text-sm font-medium">
+                        {formatResolution(video)} - {renditions.length}{" "}
+                        {renditions.length === 1 ? "rendition" : "renditions"}
+                      </p>
+                    </div>
+                  </div>
+                </div>
+              </aside>
+            </section>
+
+          </>
+        ) : (
+          <>
+            {isReady && (
+              <section className="mt-6 rounded-lg border border-info-border bg-info-light p-4 text-info-dark">
+                <div className="flex gap-3">
+                  <AlertCircle className="mt-0.5 size-5 shrink-0" />
+                  <div>
+                    <h2 className="font-heading font-semibold">
+                      Playback is not available yet
+                    </h2>
+                    <p className="mt-2 text-sm leading-6">
+                      This video is marked ready, but the playback manifest is still
+                      being prepared. The pipeline status below will stay visible until
+                      playback can start.
+                    </p>
+                  </div>
+                </div>
+              </section>
+            )}
+
+            <div className="mt-6">
+              <PipelineTimeline status={video.status} />
             </div>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Object key</TableHead>
-                  <TableHead>Parts</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {uploadSessions.length ? (
-                  uploadSessions.map((session) => (
-                    <TableRow key={session.id}>
-                      <TableCell>
-                        <StatusChip status={session.status} />
-                      </TableCell>
-                      <TableCell className="max-w-64 truncate font-mono text-xs">
-                        {session.objectKey}
-                      </TableCell>
-                      <TableCell>
-                        {session.uploadedParts.length}/{session.totalParts}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell className="text-muted-foreground" colSpan={3}>
-                      No upload session is attached to this video.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </section>
 
-          <section className="rounded-lg border bg-surface">
-            <div className="border-b p-4">
-              <h2 className="font-heading text-sm font-semibold">Processing runs</h2>
+            <div className="mt-6 grid gap-6 lg:grid-cols-2">
+              <section className="rounded-lg border bg-surface">
+                <div className="border-b p-4">
+                  <h2 className="font-heading text-sm font-semibold">
+                    Upload sessions
+                  </h2>
+                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Provider</TableHead>
+                      <TableHead>Parts</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {uploadSessions.length ? (
+                      uploadSessions.map((session) => (
+                        <TableRow key={session.id}>
+                          <TableCell>
+                            <StatusChip status={session.status} />
+                          </TableCell>
+                          <TableCell className="uppercase">{session.provider}</TableCell>
+                          <TableCell>
+                            {session.uploadedParts.length}/{session.totalParts}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell className="text-muted-foreground" colSpan={3}>
+                          No upload session is attached to this video.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </section>
+
+              <section className="rounded-lg border bg-surface">
+                <div className="border-b p-4">
+                  <h2 className="font-heading text-sm font-semibold">
+                    Processing runs
+                  </h2>
+                </div>
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      <TableHead>Status</TableHead>
+                      <TableHead>Timing</TableHead>
+                      <TableHead>Metadata</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {processingRuns.length ? (
+                      processingRuns.map((run) => (
+                        <TableRow key={run.id}>
+                          <TableCell>
+                            <StatusChip status={run.status} />
+                          </TableCell>
+                          <TableCell className="font-mono text-xs">
+                            {run.finishedAt
+                              ? formatUpdatedAt(run.finishedAt)
+                              : "running"}
+                          </TableCell>
+                          <TableCell className="font-mono text-xs text-muted-foreground">
+                            {run.metadata?.bitrate
+                              ? `${formatBytes(run.metadata.bitrate)}/s`
+                              : run.error ?? "pending"}
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    ) : (
+                      <TableRow>
+                        <TableCell className="text-muted-foreground" colSpan={3}>
+                          No processing runs yet.
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </TableBody>
+                </Table>
+              </section>
             </div>
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Status</TableHead>
-                  <TableHead>Timing</TableHead>
-                  <TableHead>Metadata</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {processingRuns.length ? (
-                  processingRuns.map((run) => (
-                    <TableRow key={run.id}>
-                      <TableCell>
-                        <StatusChip status={run.status} />
-                      </TableCell>
-                      <TableCell className="font-mono text-xs">
-                        {run.finishedAt ? formatUpdatedAt(run.finishedAt) : "running"}
-                      </TableCell>
-                      <TableCell className="font-mono text-xs text-muted-foreground">
-                        {run.metadata?.bitrate
-                          ? `${formatBytes(run.metadata.bitrate)}/s`
-                          : run.error ?? "pending"}
-                      </TableCell>
-                    </TableRow>
-                  ))
-                ) : (
-                  <TableRow>
-                    <TableCell className="text-muted-foreground" colSpan={3}>
-                      No processing runs yet.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </section>
-        </div>
+          </>
+        )}
 
-        <div className="mt-6">
-          <RenditionList renditions={renditions} />
-        </div>
-
-        <section className="mt-6 rounded-lg border bg-surface p-4">
-          <h2 className="font-heading text-sm font-semibold">Copy paths</h2>
-          <div className="mt-4 flex flex-wrap gap-2">
-            <CopyButton label="Source path" value={video.sourcePath} />
-            <CopyButton label="Manifest path" value={video.playbackManifestPath} />
-            {renditions.map((rendition) => (
-              <CopyButton
-                key={rendition.id}
-                label={`${rendition.label} playlist`}
-                value={rendition.playlistPath}
-              />
-            ))}
+        {isReady && (
+          <div className="mt-6">
+            <RenditionList renditions={renditions} />
           </div>
-        </section>
+        )}
       </section>
     </main>
   )

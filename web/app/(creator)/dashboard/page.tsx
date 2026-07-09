@@ -6,6 +6,7 @@ import {
   CheckCircle2,
   Clock3,
   ExternalLink,
+  MonitorPlay,
   RotateCcw,
   UploadCloud,
   XCircle,
@@ -75,6 +76,29 @@ function canRetryVideoProcessing(video: Video) {
   return video.status === "failed" && Boolean(video.sourceDisk && video.sourcePath)
 }
 
+function VideoThumbnail({ video }: { video: Video }) {
+  return (
+    <div className="relative h-16 w-28 shrink-0 overflow-hidden rounded-md bg-surface-overlay">
+      {video.thumbnailUrl ? (
+        <div
+          aria-label={`${video.title} thumbnail`}
+          className="size-full bg-cover bg-center"
+          role="img"
+          style={{ backgroundImage: `url(${video.thumbnailUrl})` }}
+        />
+      ) : (
+        <div
+          aria-label={`${video.title} thumbnail placeholder`}
+          className="grid size-full place-items-center bg-gradient-dark-glow"
+          role="img"
+        >
+          <MonitorPlay className="size-6 text-muted-foreground" />
+        </div>
+      )}
+    </div>
+  )
+}
+
 export default function DashboardPage() {
   const [data, setData] = React.useState<DashboardData>({
     videos: [],
@@ -133,7 +157,7 @@ export default function DashboardPage() {
               href="/upload"
             >
               <UploadCloud />
-              Create upload
+               Upload
             </Link>
           }
           description="Track your uploaded videos from browser upload through queued processing and playback readiness."
@@ -195,7 +219,7 @@ export default function DashboardPage() {
           className="mt-6 min-h-0 overflow-hidden rounded-lg border bg-surface lg:flex-1 lg:overflow-y-auto"
           id="videos"
         >
-          <Table>
+          <Table containerClassName="lg:overflow-visible">
             <TableHeader className="sticky top-0 z-10 bg-surface shadow-[0_1px_0_rgb(var(--border))]">
               <TableRow>
                 <TableHead>Video</TableHead>
@@ -241,14 +265,19 @@ export default function DashboardPage() {
                 data.videos.map((video) => (
                   <TableRow key={video.id}>
                     <TableCell>
-                      <div className="min-w-0">
-                        <p className="font-medium">{video.title}</p>
-                        <p className="mt-1 max-w-md truncate font-mono text-xs text-muted-foreground">
-                          {video.sourcePath ?? video.id}
-                        </p>
-                        <p className="mt-1 text-xs text-muted-foreground">
-                          Updated {formatUpdatedAt(video.updatedAt)}
-                        </p>
+                      <div className="flex min-w-[22rem] items-center gap-3">
+                        <VideoThumbnail video={video} />
+                        <div className="min-w-0">
+                          <p className="font-medium">{video.title}</p>
+                          {video.description && (
+                            <p className="mt-1 max-w-md truncate text-xs text-muted-foreground">
+                              {video.description}
+                            </p>
+                          )}
+                          <p className="mt-1 text-xs text-muted-foreground">
+                            Updated {formatUpdatedAt(video.updatedAt)}
+                          </p>
+                        </div>
                       </div>
                     </TableCell>
                     <TableCell>

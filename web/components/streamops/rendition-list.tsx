@@ -34,11 +34,11 @@ export function RenditionList({ renditions }: RenditionListProps) {
               </p>
             </div>
             <div className="min-w-0">
-              <p className="truncate font-mono text-xs text-muted-foreground">
-                {rendition.playlistPath}
+              <p className="text-xs text-muted-foreground">
+                {rendition.codec ? `${rendition.codec} encoded stream` : "Encoded stream"}
               </p>
-              <p className="mt-1 truncate font-mono text-xs text-muted-foreground">
-                Prefix: {rendition.segmentPrefix}
+              <p className="mt-1 text-xs text-muted-foreground">
+                Ready for adaptive playback
               </p>
             </div>
             <p className="font-mono text-xs text-muted-foreground">
