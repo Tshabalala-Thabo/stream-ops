@@ -59,6 +59,9 @@ class UploadController extends Controller
                 'provider' => $disk,
                 'multipart_upload_id' => null,
                 'object_key' => $sourcePath,
+                'original_file_name' => $request->string('fileName')->toString(),
+                'original_file_size' => $fileSize,
+                'original_mime_type' => $request->string('mimeType')->toString(),
                 'status' => UploadSessionStatus::Active,
                 'part_size' => $partSize,
                 'total_parts' => max(1, (int) ceil($fileSize / $partSize)),
@@ -158,7 +161,7 @@ class UploadController extends Controller
             ]);
 
             $uploadSession->video->update([
-                'status' => VideoStatus::Failed,
+                'status' => VideoStatus::Cancelled,
                 'processing_error' => 'Upload was cancelled before completion.',
             ]);
         });
@@ -180,6 +183,12 @@ class UploadController extends Controller
         if ($uploadSession->status !== UploadSessionStatus::Active) {
             throw ValidationException::withMessages([
                 'uploadSession' => 'Only active upload sessions can receive file chunks.',
+            ]);
+        }
+
+        if ($uploadSession->expires_at !== null && $uploadSession->expires_at->isPast()) {
+            throw ValidationException::withMessages([
+                'uploadSession' => 'This upload session has expired.',
             ]);
         }
     }

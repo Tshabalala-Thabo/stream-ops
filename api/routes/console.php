@@ -28,7 +28,7 @@ Artisan::command('streamops:cleanup-uploads', function (): int {
         ]);
 
         $uploadSession->video->update([
-            'status' => VideoStatus::Failed,
+            'status' => VideoStatus::Cancelled,
             'processing_error' => 'Upload session expired before completion.',
         ]);
 

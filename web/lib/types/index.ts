@@ -35,6 +35,7 @@ export type VideoStatus =
   | "processing"
   | "ready"
   | "failed"
+  | "cancelled"
 
 export type UploadSessionStatus =
   | "pending"
@@ -99,6 +100,9 @@ export type UploadSession = {
   provider: "s3" | "r2" | "minio" | string
   multipartUploadId: string | null
   objectKey: string
+  originalFileName: string | null
+  originalFileSize: number | null
+  originalMimeType: string | null
   status: UploadSessionStatus
   partSize: number
   totalParts: number

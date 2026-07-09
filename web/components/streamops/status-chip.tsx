@@ -18,12 +18,12 @@ const statusStyles: Record<string, string> = {
   processing: "bg-primary/10 text-primary ring-primary/25",
   ready: "bg-success-light text-success-dark ring-success-border",
   failed: "bg-destructive-light text-destructive-dark ring-destructive-border",
+  cancelled: "bg-warning-light text-warning-dark ring-warning-border",
   pending: "bg-muted text-muted-foreground ring-border",
   active: "bg-info-light text-info-dark ring-info-border",
   completed: "bg-success-light text-success-dark ring-success-border",
   aborted: "bg-warning-light text-warning-dark ring-warning-border",
   running: "bg-primary/10 text-primary ring-primary/25",
-  cancelled: "bg-muted text-muted-foreground ring-border",
 }
 
 export function StatusChip({ status, className }: StatusChipProps) {

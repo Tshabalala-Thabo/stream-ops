@@ -38,9 +38,10 @@ type UploadPhase =
 type ResumeDraft = {
   uploadSessionId: UploadSession["id"]
   videoId: UploadSession["videoId"]
-  fileName: string
-  fileSize: number
-  lastModified: number
+  fileName: string | null
+  fileSize: number | null
+  mimeType: string | null
+  lastModified: number | null
   title: string
   description: string
   updatedAt: string
@@ -76,14 +77,90 @@ function clearResumeDraft() {
   window.localStorage.removeItem(RESUME_STORAGE_KEY)
 }
 
-function fileMatchesDraft(file: File | null, draft: ResumeDraft | null) {
-  return Boolean(
-    file &&
-      draft &&
-      file.name === draft.fileName &&
-      file.size === draft.fileSize &&
-      file.lastModified === draft.lastModified
-  )
+type UploadFlowProps = {
+  initialResumeSessionId?: UploadSession["id"]
+}
+
+function isUploadSessionActive(session: UploadSession) {
+  if (session.status !== "active") {
+    return false
+  }
+
+  if (!session.expiresAt) {
+    return true
+  }
+
+  return new Date(session.expiresAt).getTime() > Date.now()
+}
+
+function buildResumeDraftFromSession(session: UploadSession): ResumeDraft {
+  return {
+    uploadSessionId: session.id,
+    videoId: session.videoId,
+    fileName: session.originalFileName,
+    fileSize: session.originalFileSize,
+    mimeType: session.originalMimeType,
+    lastModified: null,
+    title: session.video?.title ?? "",
+    description: session.video?.description ?? "",
+    updatedAt: new Date().toISOString(),
+  }
+}
+
+function getExpectedPartCount(file: File, session: UploadSession) {
+  return Math.max(1, Math.ceil(file.size / session.partSize))
+}
+
+function getResumeFileMismatch({
+  draft,
+  file,
+  session,
+}: {
+  draft: ResumeDraft | null
+  file: File | null
+  session: UploadSession | null
+}) {
+  if (!draft || !file) {
+    return null
+  }
+
+  if (draft.fileName && file.name !== draft.fileName) {
+    return `Choose ${draft.fileName} to continue this upload.`
+  }
+
+  if (draft.fileSize !== null && file.size !== draft.fileSize) {
+    return "The selected file size does not match this upload."
+  }
+
+  if (draft.mimeType && file.type !== draft.mimeType) {
+    return "The selected file type does not match this upload."
+  }
+
+  if (draft.fileSize === null && !session) {
+    return "Saved progress is still loading. Try again in a moment."
+  }
+
+  if (
+    draft.fileSize === null &&
+    session &&
+    getExpectedPartCount(file, session) !== session.totalParts
+  ) {
+    return "The selected file does not match this upload session."
+  }
+
+  return null
+}
+
+function fileCanResume({
+  draft,
+  file,
+  session,
+}: {
+  draft: ResumeDraft | null
+  file: File | null
+  session: UploadSession | null
+}) {
+  return Boolean(file && draft && !getResumeFileMismatch({ draft, file, session }))
 }
 
 function formatLocalDuration(durationSeconds: number | null) {
@@ -128,7 +205,7 @@ function getPrimaryButtonLabel({
   return "Start upload"
 }
 
-export function UploadFlow() {
+export function UploadFlow({ initialResumeSessionId }: UploadFlowProps) {
   const [selectedFile, setSelectedFile] = React.useState<File | null>(null)
   const [title, setTitle] = React.useState("")
   const [description, setDescription] = React.useState("")
@@ -151,8 +228,23 @@ export function UploadFlow() {
   const pauseRequestedRef = React.useRef(false)
 
   const isUploading = phase === "uploading" || phase === "completing"
-  const canResume = fileMatchesDraft(selectedFile, resumeDraft)
-  const progressTotalBytes = selectedFile?.size ?? resumeDraft?.fileSize ?? 0
+  const resumeMismatch = getResumeFileMismatch({
+    draft: resumeDraft,
+    file: selectedFile,
+    session: activeSession,
+  })
+  const canResume = fileCanResume({
+    draft: resumeDraft,
+    file: selectedFile,
+    session: activeSession,
+  })
+  const hasExactResumeMetadata = Boolean(
+    resumeDraft?.fileName && resumeDraft.fileSize !== null
+  )
+  const progressTotalBytes =
+    selectedFile?.size ??
+    resumeDraft?.fileSize ??
+    (activeSession ? activeSession.partSize * activeSession.totalParts : 0)
   const progress = progressTotalBytes
     ? Math.min(100, Math.round((progressBytes / progressTotalBytes) * 100))
     : 0
@@ -280,7 +372,7 @@ export function UploadFlow() {
         return
       }
 
-      if (session.status !== "active") {
+      if (!isUploadSessionActive(session)) {
         clearResumeDraft()
         setResumeDraft(null)
         setActiveSession(null)
@@ -302,6 +394,53 @@ export function UploadFlow() {
   }, [applyUploadSessionProgress])
 
   React.useEffect(() => {
+    if (initialResumeSessionId) {
+      const resumeSessionId = initialResumeSessionId
+      const requestId = resumeProgressRequestRef.current + 1
+      resumeProgressRequestRef.current = requestId
+
+      async function loadServerResumeDraft() {
+        try {
+          const session = await getUploadSession(resumeSessionId)
+
+          if (resumeProgressRequestRef.current !== requestId) {
+            return
+          }
+
+          if (!isUploadSessionActive(session)) {
+            clearResumeDraft()
+            setResumeDraft(null)
+            setActiveSession(null)
+            setUploadedPartNumbers([])
+            setProgressBytes(0)
+            setError("This upload session can no longer be continued.")
+            return
+          }
+
+          const draft = buildResumeDraftFromSession(session)
+          writeResumeDraft(draft)
+          setResumeDraft(draft)
+          setTitle(draft.title)
+          setDescription(draft.description)
+          setError(null)
+          applyUploadSessionProgress(session)
+        } catch (resumeError) {
+          if (resumeProgressRequestRef.current !== requestId) {
+            return
+          }
+
+          setError(
+            resumeError instanceof Error
+              ? resumeError.message
+              : "Unable to load this upload session."
+          )
+        }
+      }
+
+      void loadServerResumeDraft()
+      return
+    }
+
     const draft = readResumeDraft()
 
     if (draft) {
@@ -310,9 +449,11 @@ export function UploadFlow() {
       setDescription(draft.description)
       void refreshResumeProgress(draft)
     }
-  }, [refreshResumeProgress])
+  }, [applyUploadSessionProgress, initialResumeSessionId, refreshResumeProgress])
 
   function handleFileChange(file: File | null) {
+    const currentActiveSession = activeSession
+
     setSelectedFile(file)
     setCompletedSession(null)
     setActiveSession(null)
@@ -330,11 +471,21 @@ export function UploadFlow() {
     const draft = readResumeDraft()
     setResumeDraft(draft)
 
-    if (draft && fileMatchesDraft(file, draft)) {
+    if (draft) {
       setTitle(draft.title)
       setDescription(draft.description)
-      void refreshResumeProgress(draft)
-      return
+
+      if (fileCanResume({ draft, file, session: currentActiveSession })) {
+        void refreshResumeProgress(draft)
+        return
+      }
+
+      if (file && currentActiveSession) {
+        setError(
+          getResumeFileMismatch({ draft, file, session: currentActiveSession })
+        )
+        return
+      }
     }
 
     if (file && title.trim() === "") {
@@ -355,16 +506,22 @@ export function UploadFlow() {
   async function resolveUploadSession(file: File): Promise<UploadSession> {
     const draft = resumeDraft
 
-    if (fileMatchesDraft(file, draft) && draft) {
+    if (draft) {
       const session =
         activeSession?.id === draft.uploadSessionId
           ? activeSession
           : await getUploadSession(draft.uploadSessionId)
 
-      if (session.status !== "active") {
+      if (!isUploadSessionActive(session)) {
         clearResumeDraft()
         setResumeDraft(null)
         throw new Error("The saved upload is no longer active.")
+      }
+
+      const mismatch = getResumeFileMismatch({ draft, file, session })
+
+      if (mismatch) {
+        throw new Error(mismatch)
       }
 
       return session
@@ -383,6 +540,7 @@ export function UploadFlow() {
       videoId: session.videoId,
       fileName: file.name,
       fileSize: file.size,
+      mimeType: file.type || "video/mp4",
       lastModified: file.lastModified,
       title: title.trim(),
       description: description.trim(),
@@ -693,6 +851,19 @@ export function UploadFlow() {
                       </div>
                     )}
 
+                    {canResume && !hasExactResumeMetadata && (
+                      <div className="mt-3 rounded-md border border-warning/30 bg-warning-light p-3 text-sm text-warning-dark dark:bg-warning-light/70 dark:text-warning-dark">
+                        This older upload does not include exact file metadata.
+                        Make sure this is the original source file before resuming.
+                      </div>
+                    )}
+
+                    {resumeMismatch && (
+                      <div className="mt-4 rounded-md border border-destructive/30 bg-destructive-light p-3 text-sm text-destructive-dark dark:bg-destructive-light/70 dark:text-destructive-dark">
+                        {resumeMismatch}
+                      </div>
+                    )}
+
                     {phase === "success" && completedSession && (
                       <div className="mt-4 rounded-md border border-success/30 bg-success-light p-3 text-sm text-success-dark dark:bg-success-light/40 dark:text-success-dark">
                         {completedSession.video?.title ?? "Your video"} is uploaded
@@ -707,11 +878,21 @@ export function UploadFlow() {
             {resumeDraft && !selectedFile && (
               <section className="rounded-lg border border-info/30 bg-info-light p-4">
                 <h3 className="font-heading text-sm font-semibold text-info-dark dark:text-info-dark">
-                  Resume available
+                  Continue saved upload
                 </h3>
                 <p className="mt-2 text-sm leading-6 text-muted-foreground">
-                  Choose {resumeDraft.fileName} again to continue the saved upload.
+                  Choose{" "}
+                  {resumeDraft.fileName
+                    ? resumeDraft.fileName
+                    : "the original source file"}{" "}
+                  again to continue from the chunks that are already uploaded.
                 </p>
+                {!hasExactResumeMetadata && (
+                  <p className="mt-2 text-sm leading-6 text-warning-dark">
+                    This older session has limited file metadata, so StreamOps will
+                    verify the selected file by its chunk count.
+                  </p>
+                )}
               </section>
             )}
 
@@ -851,7 +1032,12 @@ export function UploadFlow() {
               <div className="grid gap-3">
                 <Button
                   className="w-full bg-gradient-primary text-white shadow-sm hover:opacity-95"
-                  disabled={!selectedFile || title.trim() === "" || isUploading}
+                  disabled={
+                    !selectedFile ||
+                    title.trim() === "" ||
+                    isUploading ||
+                    Boolean(resumeMismatch)
+                  }
                   type="submit"
                 >
                   <UploadCloud className="size-4" />

@@ -1,7 +1,19 @@
 import { CreatorPageHeader } from "@/components/streamops/creator-page-header"
 import { UploadFlow } from "@/components/streamops/upload-flow-skeleton"
 
-export default function UploadPage() {
+type UploadPageProps = {
+  searchParams: Promise<{
+    resumeSessionId?: string | string[]
+  }>
+}
+
+export default async function UploadPage({ searchParams }: UploadPageProps) {
+  const params = await searchParams
+  const rawResumeSessionId = params.resumeSessionId
+  const resumeSessionId = Array.isArray(rawResumeSessionId)
+    ? rawResumeSessionId[0]
+    : rawResumeSessionId
+
   return (
     <main className="min-h-[calc(100vh-4rem)] bg-background text-foreground">
       <section className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
@@ -11,7 +23,7 @@ export default function UploadPage() {
           eyebrow="Creator upload"
           title="Upload a video"
         />
-        <UploadFlow />
+        <UploadFlow initialResumeSessionId={resumeSessionId} />
       </section>
     </main>
   )

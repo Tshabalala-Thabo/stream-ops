@@ -14,6 +14,9 @@ use Illuminate\Database\Eloquent\Relations\BelongsTo;
     'provider',
     'multipart_upload_id',
     'object_key',
+    'original_file_name',
+    'original_file_size',
+    'original_mime_type',
     'status',
     'part_size',
     'total_parts',
@@ -40,6 +43,7 @@ class UploadSession extends Model
     {
         return [
             'status' => UploadSessionStatus::class,
+            'original_file_size' => 'integer',
             'part_size' => 'integer',
             'total_parts' => 'integer',
             'uploaded_parts' => 'array',

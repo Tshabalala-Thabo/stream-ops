@@ -1,6 +1,7 @@
 "use client"
 
-import { AlertCircle, Clock3, Film, Gauge, RotateCcw } from "lucide-react"
+import { AlertCircle, Clock3, Film, Gauge, RotateCcw, UploadCloud } from "lucide-react"
+import Link from "next/link"
 import { useParams, useRouter } from "next/navigation"
 import * as React from "react"
 
@@ -46,6 +47,34 @@ type VideoDetailData = {
   uploadSessions: UploadSession[]
   processingRuns: VideoProcessingRun[]
   renditions: VideoRendition[]
+}
+
+function isActiveUploadSession(session: UploadSession) {
+  if (session.status !== "active") {
+    return false
+  }
+
+  if (!session.expiresAt) {
+    return true
+  }
+
+  return new Date(session.expiresAt).getTime() > Date.now()
+}
+
+function getActiveUploadSessionForVideo(
+  video: Video,
+  uploadSessions: UploadSession[]
+) {
+  if (video.status !== "uploading") {
+    return null
+  }
+
+  return (
+    uploadSessions.find(
+      (session) =>
+        String(session.videoId) === String(video.id) && isActiveUploadSession(session)
+    ) ?? null
+  )
 }
 
 export default function DashboardVideoDetailPage() {
@@ -220,6 +249,7 @@ export default function DashboardVideoDetailPage() {
   const isReady = video.status === "ready"
   const canPlayReadyVideo = isReady && Boolean(video.playbackManifestUrl)
   const shouldShowPipeline = !isReady || !canPlayReadyVideo
+  const activeUploadSession = getActiveUploadSessionForVideo(video, uploadSessions)
   const canRetryProcessing =
     shouldShowPipeline &&
     video.status === "failed" &&
@@ -233,6 +263,17 @@ export default function DashboardVideoDetailPage() {
             <div className="rounded-lg border bg-surface p-4">
               <p className="font-heading text-sm font-semibold">Quick actions</p>
               <div className="mt-4 flex flex-wrap gap-2">
+                {activeUploadSession && (
+                  <Link
+                    className={buttonVariants({
+                      className: "gap-2 bg-gradient-primary text-white",
+                    })}
+                    href={`/upload?resumeSessionId=${activeUploadSession.id}`}
+                  >
+                    <UploadCloud />
+                    Continue upload
+                  </Link>
+                )}
                 {shouldShowPipeline && (
                   <button
                     className={buttonVariants({

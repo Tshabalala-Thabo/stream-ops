@@ -39,6 +39,9 @@ class UploadApiTest extends TestCase
             ->assertJsonPath('data.provider', 'public')
             ->assertJsonPath('data.status', 'active')
             ->assertJsonPath('data.totalParts', 2)
+            ->assertJsonPath('data.originalFileName', 'launch.mp4')
+            ->assertJsonPath('data.originalFileSize', 10_000)
+            ->assertJsonPath('data.originalMimeType', 'video/mp4')
             ->assertJsonPath('data.video.title', 'Local upload');
 
         $this->assertDatabaseHas('videos', [
@@ -50,6 +53,9 @@ class UploadApiTest extends TestCase
 
         $this->assertDatabaseHas('upload_sessions', [
             'provider' => 'public',
+            'original_file_name' => 'launch.mp4',
+            'original_file_size' => 10_000,
+            'original_mime_type' => 'video/mp4',
             'status' => UploadSessionStatus::Active->value,
         ]);
     }
@@ -206,6 +212,51 @@ class UploadApiTest extends TestCase
             ->assertForbidden();
     }
 
+    public function test_inactive_and_expired_upload_sessions_cannot_receive_parts_or_complete(): void
+    {
+        Storage::fake('local');
+        Sanctum::actingAs($user = User::factory()->create());
+
+        $statuses = [
+            UploadSessionStatus::Completed,
+            UploadSessionStatus::Aborted,
+            UploadSessionStatus::Failed,
+        ];
+
+        foreach ($statuses as $status) {
+            $video = Video::factory()->for($user)->create([
+                'status' => $status === UploadSessionStatus::Completed
+                    ? VideoStatus::Queued
+                    : VideoStatus::Failed,
+            ]);
+            $uploadSession = UploadSession::factory()->for($video)->create([
+                'status' => $status,
+            ]);
+
+            $this->put("/api/uploads/{$uploadSession->id}/parts/1", [
+                'chunk' => UploadedFile::fake()->createWithContent('1.part', 'hello'),
+            ])->assertUnprocessable();
+
+            $this->postJson("/api/uploads/{$uploadSession->id}/complete")
+                ->assertUnprocessable();
+        }
+
+        $expiredVideo = Video::factory()->for($user)->create([
+            'status' => VideoStatus::Uploading,
+        ]);
+        $expiredSession = UploadSession::factory()->for($expiredVideo)->create([
+            'status' => UploadSessionStatus::Active,
+            'expires_at' => now()->subMinute(),
+        ]);
+
+        $this->put("/api/uploads/{$expiredSession->id}/parts/1", [
+            'chunk' => UploadedFile::fake()->createWithContent('1.part', 'hello'),
+        ])->assertUnprocessable();
+
+        $this->postJson("/api/uploads/{$expiredSession->id}/complete")
+            ->assertUnprocessable();
+    }
+
     public function test_authenticated_user_can_abort_active_upload_session_and_delete_chunks(): void
     {
         Storage::fake('local');
@@ -227,10 +278,10 @@ class UploadApiTest extends TestCase
         $this->postJson("/api/uploads/{$uploadSession->id}/abort")
             ->assertOk()
             ->assertJsonPath('data.status', 'aborted')
-            ->assertJsonPath('data.video.status', 'failed');
+            ->assertJsonPath('data.video.status', 'cancelled');
 
         $this->assertSame(UploadSessionStatus::Aborted, $uploadSession->fresh()->status);
-        $this->assertSame(VideoStatus::Failed, $video->fresh()->status);
+        $this->assertSame(VideoStatus::Cancelled, $video->fresh()->status);
         $this->assertFalse(Storage::disk('local')->exists("upload-sessions/{$uploadSession->id}"));
     }
 
@@ -274,7 +325,7 @@ class UploadApiTest extends TestCase
             ->assertExitCode(0);
 
         $this->assertSame(UploadSessionStatus::Failed, $expiredSession->fresh()->status);
-        $this->assertSame(VideoStatus::Failed, $expiredVideo->fresh()->status);
+        $this->assertSame(VideoStatus::Cancelled, $expiredVideo->fresh()->status);
         $this->assertFalse(Storage::disk('local')->exists("upload-sessions/{$expiredSession->id}"));
 
         $this->assertSame(UploadSessionStatus::Active, $activeSession->fresh()->status);

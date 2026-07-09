@@ -3,6 +3,7 @@
 import {
   Activity,
   AlertCircle,
+  Ban,
   CheckCircle2,
   Clock3,
   ExternalLink,
@@ -84,6 +85,12 @@ const metricCards = [
       videos.filter((video) => video.status === "failed").length,
   },
   {
+    label: "Cancelled",
+    icon: Ban,
+    getValue: ({ videos }: DashboardData) =>
+      videos.filter((video) => video.status === "cancelled").length,
+  },
+  {
     label: "Active uploads",
     icon: Clock3,
     getValue: ({ uploadSessions }: DashboardData) =>
@@ -93,6 +100,34 @@ const metricCards = [
 
 function canRetryVideoProcessing(video: Video) {
   return video.status === "failed" && Boolean(video.sourceDisk && video.sourcePath)
+}
+
+function isActiveUploadSession(session: UploadSession) {
+  if (session.status !== "active") {
+    return false
+  }
+
+  if (!session.expiresAt) {
+    return true
+  }
+
+  return new Date(session.expiresAt).getTime() > Date.now()
+}
+
+function getActiveUploadSessionForVideo(
+  video: Video,
+  uploadSessions: UploadSession[]
+) {
+  if (video.status !== "uploading") {
+    return null
+  }
+
+  return (
+    uploadSessions.find(
+      (session) =>
+        String(session.videoId) === String(video.id) && isActiveUploadSession(session)
+    ) ?? null
+  )
 }
 
 function VideoThumbnail({ video }: { video: Video }) {
@@ -119,12 +154,18 @@ function VideoThumbnail({ video }: { video: Video }) {
 }
 
 type VideoActionsMenuProps = {
+  activeUploadSession: UploadSession | null
   isDeleting: boolean
   onDelete: () => void
   video: Video
 }
 
-function VideoActionsMenu({ isDeleting, onDelete, video }: VideoActionsMenuProps) {
+function VideoActionsMenu({
+  activeUploadSession,
+  isDeleting,
+  onDelete,
+  video,
+}: VideoActionsMenuProps) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false)
 
   return (
@@ -143,11 +184,19 @@ function VideoActionsMenu({ isDeleting, onDelete, video }: VideoActionsMenuProps
           <MoreHorizontal />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-44">
+          {activeUploadSession && (
+            <DropdownMenuItem
+              render={<Link href={`/upload?resumeSessionId=${activeUploadSession.id}`} />}
+            >
+              <UploadCloud />
+              Continue upload
+            </DropdownMenuItem>
+          )}
           <DropdownMenuItem render={<Link href={`/dashboard/videos/${video.id}`} />}>
             <ExternalLink />
             Open
           </DropdownMenuItem>
-          {canRetryVideoProcessing(video) && (
+          {video.status !== "uploading" && canRetryVideoProcessing(video) && (
             <DropdownMenuItem render={<Link href={`/dashboard/videos/${video.id}`} />}>
               <RotateCcw />
               Retry processing
@@ -317,7 +366,7 @@ export default function DashboardPage() {
             </span>
           </div>
 
-          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-6">
             {metricCards.map((metric) => {
               const Icon = metric.icon
 
@@ -386,38 +435,46 @@ export default function DashboardPage() {
                 </TableRow>
               )}
               {!isLoading &&
-                data.videos.map((video) => (
-                  <TableRow key={video.id}>
-                    <TableCell>
-                      <div className="flex min-w-[22rem] items-center gap-3">
-                        <VideoThumbnail video={video} />
-                        <div className="min-w-0">
-                          <p className="font-medium">{video.title}</p>
-                          {video.description && (
-                            <p className="mt-1 max-w-md truncate text-xs text-muted-foreground">
-                              {video.description}
+                data.videos.map((video) => {
+                  const activeUploadSession = getActiveUploadSessionForVideo(
+                    video,
+                    data.uploadSessions
+                  )
+
+                  return (
+                    <TableRow key={video.id}>
+                      <TableCell>
+                        <div className="flex min-w-[22rem] items-center gap-3">
+                          <VideoThumbnail video={video} />
+                          <div className="min-w-0">
+                            <p className="font-medium">{video.title}</p>
+                            {video.description && (
+                              <p className="mt-1 max-w-md truncate text-xs text-muted-foreground">
+                                {video.description}
+                              </p>
+                            )}
+                            <p className="mt-1 text-xs text-muted-foreground">
+                              Updated {formatUpdatedAt(video.updatedAt)}
                             </p>
-                          )}
-                          <p className="mt-1 text-xs text-muted-foreground">
-                            Updated {formatUpdatedAt(video.updatedAt)}
-                          </p>
+                          </div>
                         </div>
-                      </div>
-                    </TableCell>
-                    <TableCell>
-                      <StatusChip status={video.status} />
-                    </TableCell>
-                    <TableCell>{formatDuration(video.durationSeconds)}</TableCell>
-                    <TableCell>{formatResolution(video)}</TableCell>
-                    <TableCell className="text-right">
-                      <VideoActionsMenu
-                        isDeleting={deletingVideoId === video.id}
-                        onDelete={() => void handleDeleteVideo(video)}
-                        video={video}
-                      />
-                    </TableCell>
-                  </TableRow>
-                ))}
+                      </TableCell>
+                      <TableCell>
+                        <StatusChip status={video.status} />
+                      </TableCell>
+                      <TableCell>{formatDuration(video.durationSeconds)}</TableCell>
+                      <TableCell>{formatResolution(video)}</TableCell>
+                      <TableCell className="text-right">
+                        <VideoActionsMenu
+                          activeUploadSession={activeUploadSession}
+                          isDeleting={deletingVideoId === video.id}
+                          onDelete={() => void handleDeleteVideo(video)}
+                          video={video}
+                        />
+                      </TableCell>
+                    </TableRow>
+                  )
+                })}
             </TableBody>
           </Table>
         </section>

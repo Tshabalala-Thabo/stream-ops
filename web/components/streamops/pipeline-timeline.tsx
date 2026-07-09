@@ -31,6 +31,7 @@ const statusStage: Record<VideoStatus, number> = {
   processing: 2,
   ready: stages.length - 1,
   failed: -1,
+  cancelled: -1,
 }
 
 type PipelineTimelineProps = {
@@ -58,6 +59,11 @@ export function PipelineTimeline({ status, className }: PipelineTimelineProps) {
         {status === "ready" && (
           <span className="rounded-md bg-gradient-ready px-2 py-1 text-xs font-medium text-brand-accent-foreground">
             Playback ready
+          </span>
+        )}
+        {status === "cancelled" && (
+          <span className="rounded-md bg-warning-light px-2 py-1 text-xs font-medium text-warning-dark ring-1 ring-warning-border">
+            Upload cancelled
           </span>
         )}
       </div>
