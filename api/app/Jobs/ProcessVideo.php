@@ -15,6 +15,8 @@ class ProcessVideo implements ShouldBeUnique, ShouldQueue
 {
     use Queueable;
 
+    public bool $deleteWhenMissingModels = true;
+
     public bool $failOnTimeout = true;
 
     public int $timeout;
@@ -42,6 +44,10 @@ class ProcessVideo implements ShouldBeUnique, ShouldQueue
      */
     public function handle(FfmpegVideoProcessor $processor): void
     {
+        if (! $this->videoStillExists()) {
+            return;
+        }
+
         $this->video->refresh();
 
         $processingRun = $this->video->processingRuns()->create([
@@ -59,6 +65,10 @@ class ProcessVideo implements ShouldBeUnique, ShouldQueue
 
         try {
             $result = $processor->process($this->video);
+
+            if (! $this->videoStillExists()) {
+                return;
+            }
 
             $this->video->update([
                 'status' => VideoStatus::Ready,
@@ -90,6 +100,10 @@ class ProcessVideo implements ShouldBeUnique, ShouldQueue
                 ],
             ]);
         } catch (Throwable $throwable) {
+            if (! $this->videoStillExists()) {
+                return;
+            }
+
             $this->video->update([
                 'status' => VideoStatus::Failed,
                 'processing_error' => $throwable->getMessage(),
@@ -173,5 +187,10 @@ class ProcessVideo implements ShouldBeUnique, ShouldQueue
                 'segment_prefix' => $rendition['segmentPrefix'],
             ]);
         }
+    }
+
+    private function videoStillExists(): bool
+    {
+        return $this->video->newQuery()->whereKey($this->video->getKey())->exists();
     }
 }

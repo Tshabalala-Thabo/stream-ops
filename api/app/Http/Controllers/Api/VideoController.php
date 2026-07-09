@@ -11,7 +11,10 @@ use App\Http\Resources\VideoRenditionResource;
 use App\Http\Resources\VideoResource;
 use App\Jobs\ProcessVideo;
 use App\Models\Video;
+use App\Models\VideoRendition;
+use App\Support\UploadSessionFiles;
 use Illuminate\Http\Request;
+use Illuminate\Http\Response;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Storage;
 use Illuminate\Validation\ValidationException;
@@ -147,12 +150,70 @@ class VideoController extends Controller
         return new VideoResource($video->refresh()->load('user'));
     }
 
+    public function destroy(Request $request, Video $video): Response
+    {
+        abort_unless($video->user_id === $request->user()->id, 403);
+
+        $video->load(['uploadSessions', 'renditions', 'media']);
+
+        $this->deleteVideoFiles($video);
+
+        DB::transaction(function () use ($video): void {
+            foreach (['source', 'thumbnails', 'playback_manifests'] as $collectionName) {
+                $video->clearMediaCollection($collectionName);
+            }
+
+            $video->media()->delete();
+            $video->delete();
+        });
+
+        return response()->noContent();
+    }
+
     public function processingRuns(Request $request, Video $video)
     {
         abort_unless($video->user_id === $request->user()->id, 403);
 
         return VideoProcessingRunResource::collection(
             $video->processingRuns()->latest()->get()
+        );
+    }
+
+    private function deleteVideoFiles(Video $video): void
+    {
+        foreach ($video->uploadSessions as $uploadSession) {
+            UploadSessionFiles::deleteTemporaryChunks($uploadSession);
+        }
+
+        $disk = $video->source_disk;
+
+        if ($disk === null) {
+            return;
+        }
+
+        $storage = Storage::disk($disk);
+
+        $storage->deleteDirectory("videos/{$video->id}");
+
+        $paths = collect([
+            $video->source_path,
+            $video->thumbnail_path,
+            $video->playback_manifest_path,
+            $video->preview_sprite_path,
+            $video->preview_track_path,
+        ]);
+
+        $video->renditions->each(function (VideoRendition $rendition) use ($paths, $storage): void {
+            $storage->deleteDirectory($rendition->segment_prefix);
+            $paths->push($rendition->playlist_path);
+        });
+
+        $storage->delete(
+            $paths
+                ->filter()
+                ->unique()
+                ->values()
+                ->all()
         );
     }
 }

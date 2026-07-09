@@ -6,8 +6,10 @@ import {
   CheckCircle2,
   Clock3,
   ExternalLink,
+  MoreHorizontal,
   MonitorPlay,
   RotateCcw,
+  Trash2,
   UploadCloud,
   XCircle,
 } from "lucide-react"
@@ -21,7 +23,24 @@ import {
   formatResolution,
   formatUpdatedAt,
 } from "@/components/streamops/video-format"
-import { buttonVariants } from "@/components/ui/button"
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog"
+import { Button, buttonVariants } from "@/components/ui/button"
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu"
 import { Skeleton } from "@/components/ui/skeleton"
 import {
   Table,
@@ -31,7 +50,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table"
-import { getMyUploadSessions, getMyVideos } from "@/lib/api/videos"
+import { deleteMyVideo, getMyUploadSessions, getMyVideos } from "@/lib/api/videos"
 import type { UploadSession, Video } from "@/lib/types"
 
 type DashboardData = {
@@ -99,13 +118,88 @@ function VideoThumbnail({ video }: { video: Video }) {
   )
 }
 
+type VideoActionsMenuProps = {
+  isDeleting: boolean
+  onDelete: () => void
+  video: Video
+}
+
+function VideoActionsMenu({ isDeleting, onDelete, video }: VideoActionsMenuProps) {
+  const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false)
+
+  return (
+    <>
+      <DropdownMenu>
+        <DropdownMenuTrigger
+          render={
+            <Button
+              aria-label={`Actions for ${video.title}`}
+              size="icon-sm"
+              type="button"
+              variant="ghost"
+            />
+          }
+        >
+          <MoreHorizontal />
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="end" className="w-44">
+          <DropdownMenuItem render={<Link href={`/dashboard/videos/${video.id}`} />}>
+            <ExternalLink />
+            Open
+          </DropdownMenuItem>
+          {canRetryVideoProcessing(video) && (
+            <DropdownMenuItem render={<Link href={`/dashboard/videos/${video.id}`} />}>
+              <RotateCcw />
+              Retry processing
+            </DropdownMenuItem>
+          )}
+          <DropdownMenuSeparator />
+          <DropdownMenuItem
+            onClick={() => setIsDeleteDialogOpen(true)}
+            variant="destructive"
+          >
+            <Trash2 />
+            Delete
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <AlertDialog open={isDeleteDialogOpen} onOpenChange={setIsDeleteDialogOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete this video?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently remove {video.title} and all uploaded, preview,
+              and playback files attached to it.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              disabled={isDeleting}
+              onClick={onDelete}
+              variant="destructive"
+            >
+              {isDeleting ? "Deleting" : "Delete video"}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </>
+  )
+}
+
 export default function DashboardPage() {
   const [data, setData] = React.useState<DashboardData>({
     videos: [],
     uploadSessions: [],
   })
   const [isLoading, setIsLoading] = React.useState(true)
+  const [deletingVideoId, setDeletingVideoId] = React.useState<Video["id"] | null>(
+    null
+  )
   const [error, setError] = React.useState<string | null>(null)
+  const [successMessage, setSuccessMessage] = React.useState<string | null>(null)
 
   React.useEffect(() => {
     let isMounted = true
@@ -145,6 +239,31 @@ export default function DashboardPage() {
     }
   }, [])
 
+  async function handleDeleteVideo(video: Video) {
+    setDeletingVideoId(video.id)
+    setError(null)
+    setSuccessMessage(null)
+
+    try {
+      await deleteMyVideo(video.id)
+      setData((current) => ({
+        videos: current.videos.filter((item) => item.id !== video.id),
+        uploadSessions: current.uploadSessions.filter(
+          (session) => session.videoId !== video.id
+        ),
+      }))
+      setSuccessMessage(`${video.title} was deleted.`)
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "Unable to delete this video."
+      )
+    } finally {
+      setDeletingVideoId(null)
+    }
+  }
+
   return (
     <main className="min-h-[calc(100vh-4rem)] bg-background text-foreground lg:h-[calc(100vh-4rem)] lg:overflow-hidden">
       <section className="mx-auto flex min-h-[calc(100vh-4rem)] w-full max-w-7xl flex-col px-4 py-8 sm:px-6 lg:h-full lg:min-h-0">
@@ -170,6 +289,15 @@ export default function DashboardPage() {
             <div className="flex gap-3">
               <AlertCircle className="mt-0.5 size-5 shrink-0" />
               <p className="text-sm font-medium">{error}</p>
+            </div>
+          </section>
+        )}
+
+        {successMessage && (
+          <section className="mt-6 shrink-0 rounded-lg border border-success-border bg-success-light p-4 text-success-dark">
+            <div className="flex gap-3">
+              <CheckCircle2 className="mt-0.5 size-5 shrink-0" />
+              <p className="text-sm font-medium">{successMessage}</p>
             </div>
           </section>
         )}
@@ -226,7 +354,6 @@ export default function DashboardPage() {
                 <TableHead>Status</TableHead>
                 <TableHead>Duration</TableHead>
                 <TableHead>Resolution</TableHead>
-                <TableHead>Manifest</TableHead>
                 <TableHead className="text-right">Actions</TableHead>
               </TableRow>
             </TableHeader>
@@ -247,16 +374,13 @@ export default function DashboardPage() {
                       <Skeleton className="h-4 w-28" />
                     </TableCell>
                     <TableCell>
-                      <Skeleton className="h-4 w-16" />
-                    </TableCell>
-                    <TableCell>
-                      <Skeleton className="ml-auto h-9 w-28" />
+                      <Skeleton className="ml-auto size-8" />
                     </TableCell>
                   </TableRow>
                 ))}
               {!isLoading && data.videos.length === 0 && (
                 <TableRow>
-                  <TableCell className="text-muted-foreground" colSpan={6}>
+                  <TableCell className="text-muted-foreground" colSpan={5}>
                     No videos yet. Upload a source video to start tracking it here.
                   </TableCell>
                 </TableRow>
@@ -285,37 +409,12 @@ export default function DashboardPage() {
                     </TableCell>
                     <TableCell>{formatDuration(video.durationSeconds)}</TableCell>
                     <TableCell>{formatResolution(video)}</TableCell>
-                    <TableCell>
-                      <span className="font-mono text-xs text-muted-foreground">
-                        {video.playbackManifestPath ? "ready" : "pending"}
-                      </span>
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex justify-end gap-2">
-                        {canRetryVideoProcessing(video) && (
-                          <Link
-                            className={buttonVariants({
-                              className: "gap-2",
-                              size: "sm",
-                              variant: "outline",
-                            })}
-                            href={`/dashboard/videos/${video.id}`}
-                          >
-                            <RotateCcw />
-                            Retry
-                          </Link>
-                        )}
-                        <Link
-                          className={buttonVariants({
-                            className: "gap-2",
-                            size: "sm",
-                          })}
-                          href={`/dashboard/videos/${video.id}`}
-                        >
-                          <ExternalLink />
-                          Open
-                        </Link>
-                      </div>
+                    <TableCell className="text-right">
+                      <VideoActionsMenu
+                        isDeleting={deletingVideoId === video.id}
+                        onDelete={() => void handleDeleteVideo(video)}
+                        video={video}
+                      />
                     </TableCell>
                   </TableRow>
                 ))}

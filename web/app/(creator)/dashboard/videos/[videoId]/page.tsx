@@ -1,10 +1,11 @@
 "use client"
 
 import { AlertCircle, Clock3, Film, Gauge, RotateCcw } from "lucide-react"
-import { useParams } from "next/navigation"
+import { useParams, useRouter } from "next/navigation"
 import * as React from "react"
 
 import { CreatorPageHeader } from "@/components/streamops/creator-page-header"
+import { DeleteVideoDialog } from "@/components/streamops/delete-video-dialog"
 import { PipelineTimeline } from "@/components/streamops/pipeline-timeline"
 import { RenditionList } from "@/components/streamops/rendition-list"
 import { StatusChip } from "@/components/streamops/status-chip"
@@ -26,6 +27,7 @@ import {
   TableRow,
 } from "@/components/ui/table"
 import {
+  deleteMyVideo,
   getMyVideo,
   getMyVideoProcessingRuns,
   getMyVideoRenditions,
@@ -48,10 +50,12 @@ type VideoDetailData = {
 
 export default function DashboardVideoDetailPage() {
   const params = useParams<{ videoId: string }>()
+  const router = useRouter()
   const videoId = params.videoId
   const [data, setData] = React.useState<VideoDetailData | null>(null)
   const [isLoading, setIsLoading] = React.useState(true)
   const [isRetrying, setIsRetrying] = React.useState(false)
+  const [isDeleting, setIsDeleting] = React.useState(false)
   const [error, setError] = React.useState<string | null>(null)
 
   const loadVideoDetail = React.useCallback(async () => {
@@ -161,6 +165,28 @@ export default function DashboardVideoDetailPage() {
     }
   }
 
+  async function handleDeleteVideo() {
+    if (!data) {
+      return
+    }
+
+    setIsDeleting(true)
+    setError(null)
+
+    try {
+      await deleteMyVideo(data.video.id)
+      router.replace("/dashboard#videos")
+      router.refresh()
+    } catch (deleteError) {
+      setError(
+        deleteError instanceof Error
+          ? deleteError.message
+          : "Unable to delete this video."
+      )
+      setIsDeleting(false)
+    }
+  }
+
   if (isLoading) {
     return (
       <main className="min-h-[calc(100vh-4rem)] bg-background text-foreground">
@@ -204,10 +230,10 @@ export default function DashboardVideoDetailPage() {
       <section className="mx-auto w-full max-w-7xl px-4 py-8 sm:px-6">
         <CreatorPageHeader
           actions={
-            shouldShowPipeline ? (
-              <div className="rounded-lg border bg-surface p-4">
-                <p className="font-heading text-sm font-semibold">Quick actions</p>
-                <div className="mt-4 flex flex-wrap gap-2">
+            <div className="rounded-lg border bg-surface p-4">
+              <p className="font-heading text-sm font-semibold">Quick actions</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {shouldShowPipeline && (
                   <button
                     className={buttonVariants({
                       className: "gap-2",
@@ -220,9 +246,14 @@ export default function DashboardVideoDetailPage() {
                     <RotateCcw />
                     {isRetrying ? "Retrying" : "Retry processing"}
                   </button>
-                </div>
+                )}
+                <DeleteVideoDialog
+                  isDeleting={isDeleting}
+                  onConfirm={() => void handleDeleteVideo()}
+                  videoTitle={video.title}
+                />
               </div>
-            ) : undefined
+            </div>
           }
           backHref="/dashboard#videos"
           backLabel="Back to dashboard"

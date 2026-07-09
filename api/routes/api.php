@@ -21,6 +21,7 @@ Route::middleware(['auth:sanctum'])->group(function (): void {
     Route::get('/me/videos/{video}/renditions', [VideoController::class, 'creatorRenditions']);
     Route::get('/me/videos/{video}/upload-sessions', [VideoController::class, 'uploadSessions']);
     Route::post('/me/videos/{video}/retry-processing', [VideoController::class, 'retryProcessing']);
+    Route::delete('/me/videos/{video}', [VideoController::class, 'destroy']);
     Route::get('/me/upload-sessions', [UploadController::class, 'index']);
     Route::get('/videos/{video}/processing-runs', [VideoController::class, 'processingRuns']);
 

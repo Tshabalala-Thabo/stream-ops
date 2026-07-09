@@ -111,3 +111,9 @@ export async function retryMyVideoProcessing(videoId: Video["id"]): Promise<Vide
 
   return response.data
 }
+
+export async function deleteMyVideo(videoId: Video["id"]): Promise<void> {
+  await apiFetch<void>(`/api/me/videos/${videoId}`, {
+    method: "DELETE",
+  })
+}

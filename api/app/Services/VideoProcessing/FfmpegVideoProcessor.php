@@ -539,7 +539,11 @@ class FfmpegVideoProcessor
 
     private function storeHlsDirectory(Video $video, string $hlsDirectory): void
     {
+        $this->ensureVideoStillExists($video);
+
         foreach (File::allFiles($hlsDirectory) as $file) {
+            $this->ensureVideoStillExists($video);
+
             $relativePath = $file->getRelativePathname();
             $targetPath = "videos/{$video->id}/hls/{$relativePath}";
             $stream = fopen($file->getPathname(), 'rb');
@@ -560,6 +564,8 @@ class FfmpegVideoProcessor
 
     private function storeGeneratedFile(Video $video, string $localPath, string $targetPath): void
     {
+        $this->ensureVideoStillExists($video);
+
         $stream = fopen($localPath, 'rb');
 
         if ($stream === false) {
@@ -572,6 +578,13 @@ class FfmpegVideoProcessor
             }
         } finally {
             fclose($stream);
+        }
+    }
+
+    private function ensureVideoStillExists(Video $video): void
+    {
+        if (! $video->newQuery()->whereKey($video->getKey())->exists()) {
+            throw new RuntimeException('Video was deleted before generated assets could be stored.');
         }
     }
 

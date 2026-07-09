@@ -10,6 +10,7 @@ use App\Models\User;
 use App\Models\Video;
 use App\Models\VideoRendition;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\DB;
 use Illuminate\Support\Facades\Queue;
 use Illuminate\Support\Facades\Storage;
 use Tests\TestCase;
@@ -255,6 +256,122 @@ class VideoApiTest extends TestCase
             ->assertForbidden();
 
         Queue::assertNothingPushed();
+    }
+
+    public function test_authenticated_creator_can_delete_video_and_all_files(): void
+    {
+        Storage::fake('local');
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+        $video = Video::factory()->for($user)->ready()->create(['source_disk' => 'public']);
+        $video->update([
+            'source_path' => "videos/{$video->id}/source/original.mp4",
+            'thumbnail_path' => "videos/{$video->id}/thumbnails/default.jpg",
+            'playback_manifest_path' => "videos/{$video->id}/hls/master.m3u8",
+            'preview_sprite_path' => "videos/{$video->id}/previews/storyboard.jpg",
+            'preview_track_path' => "videos/{$video->id}/previews/storyboard.vtt",
+        ]);
+        $uploadSession = UploadSession::factory()->for($video)->completed()->create([
+            'object_key' => $video->source_path,
+        ]);
+        $processingRun = $video->processingRuns()->create([
+            'status' => ProcessingRunStatus::Completed,
+            'started_at' => now()->subMinutes(2),
+            'finished_at' => now()->subMinute(),
+        ]);
+        $rendition = VideoRendition::factory()->for($video)->create([
+            'label' => '720p',
+            'playlist_path' => "videos/{$video->id}/hls/720p/index.m3u8",
+            'segment_prefix' => "videos/{$video->id}/hls/720p",
+        ]);
+
+        foreach ([
+            $video->source_path,
+            $video->thumbnail_path,
+            $video->playback_manifest_path,
+            $video->preview_sprite_path,
+            $video->preview_track_path,
+            $rendition->playlist_path,
+            "{$rendition->segment_prefix}/segment_000.ts",
+        ] as $path) {
+            Storage::disk('public')->put($path, 'asset');
+        }
+
+        Storage::disk('local')->put("upload-sessions/{$uploadSession->id}/parts/1.part", 'chunk');
+
+        DB::table('media')->insert([
+            'model_type' => Video::class,
+            'model_id' => $video->id,
+            'collection_name' => 'source',
+            'name' => 'original',
+            'file_name' => 'original.mp4',
+            'mime_type' => 'video/mp4',
+            'disk' => 'public',
+            'conversions_disk' => null,
+            'size' => 5,
+            'manipulations' => json_encode([]),
+            'custom_properties' => json_encode([]),
+            'generated_conversions' => json_encode([]),
+            'responsive_images' => json_encode([]),
+            'order_column' => null,
+            'created_at' => now(),
+            'updated_at' => now(),
+        ]);
+
+        $this->actingAs($user)->deleteJson("/api/me/videos/{$video->id}")
+            ->assertNoContent();
+
+        $this->assertDatabaseMissing('videos', ['id' => $video->id]);
+        $this->assertDatabaseMissing('upload_sessions', ['id' => $uploadSession->id]);
+        $this->assertDatabaseMissing('video_processing_runs', ['id' => $processingRun->id]);
+        $this->assertDatabaseMissing('video_renditions', ['id' => $rendition->id]);
+        $this->assertDatabaseMissing('media', [
+            'model_type' => Video::class,
+            'model_id' => $video->id,
+        ]);
+        $this->assertFalse(Storage::disk('public')->exists("videos/{$video->id}"));
+        $this->assertFalse(Storage::disk('local')->exists("upload-sessions/{$uploadSession->id}"));
+        $this->getJson("/api/videos/{$video->id}")
+            ->assertNotFound();
+    }
+
+    public function test_authenticated_creator_cannot_delete_another_users_video(): void
+    {
+        Storage::fake('public');
+
+        $owner = User::factory()->create();
+        $otherUser = User::factory()->create();
+        $video = Video::factory()->for($owner)->ready()->create([
+            'source_disk' => 'public',
+            'source_path' => 'videos/owned-video/source/original.mp4',
+        ]);
+        Storage::disk('public')->put($video->source_path, 'source');
+
+        $this->actingAs($otherUser)->deleteJson("/api/me/videos/{$video->id}")
+            ->assertForbidden();
+
+        $this->assertDatabaseHas('videos', ['id' => $video->id]);
+        $this->assertTrue(Storage::disk('public')->exists($video->source_path));
+    }
+
+    public function test_authenticated_creator_can_delete_video_when_files_are_missing(): void
+    {
+        Storage::fake('local');
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+        $video = Video::factory()->for($user)->ready()->create([
+            'source_disk' => 'public',
+            'source_path' => 'videos/missing-files/source/original.mp4',
+            'thumbnail_path' => 'videos/missing-files/thumbnails/default.jpg',
+            'playback_manifest_path' => 'videos/missing-files/hls/master.m3u8',
+        ]);
+
+        $this->actingAs($user)->deleteJson("/api/me/videos/{$video->id}")
+            ->assertNoContent();
+
+        $this->assertDatabaseMissing('videos', ['id' => $video->id]);
     }
 
     public function test_storage_urls_use_configured_public_and_s3_disks(): void
