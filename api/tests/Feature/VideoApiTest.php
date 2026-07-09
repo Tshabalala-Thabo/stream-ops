@@ -244,6 +244,28 @@ class VideoApiTest extends TestCase
         Queue::assertNothingPushed();
     }
 
+    public function test_authenticated_creator_cannot_retry_cancelled_video_processing(): void
+    {
+        Queue::fake();
+        Storage::fake('public');
+
+        $user = User::factory()->create();
+        $video = Video::factory()->for($user)->create([
+            'status' => VideoStatus::Cancelled,
+            'source_disk' => 'public',
+            'source_path' => 'videos/cancelled-video/source/original.mp4',
+        ]);
+
+        Storage::disk('public')->put($video->source_path, 'source video');
+
+        $this->actingAs($user)->postJson("/api/me/videos/{$video->id}/retry-processing")
+            ->assertUnprocessable()
+            ->assertJsonValidationErrors('video');
+
+        $this->assertSame(VideoStatus::Cancelled, $video->fresh()->status);
+        Queue::assertNothingPushed();
+    }
+
     public function test_authenticated_creator_cannot_retry_another_users_video_processing(): void
     {
         Queue::fake();

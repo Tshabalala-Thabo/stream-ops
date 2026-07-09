@@ -247,10 +247,14 @@ export default function DashboardVideoDetailPage() {
 
   const { video, uploadSessions, processingRuns, renditions } = data
   const isReady = video.status === "ready"
+  const isCancelled = video.status === "cancelled"
   const canPlayReadyVideo = isReady && Boolean(video.playbackManifestUrl)
   const shouldShowPipeline = !isReady || !canPlayReadyVideo
-  const activeUploadSession = getActiveUploadSessionForVideo(video, uploadSessions)
+  const activeUploadSession = isCancelled
+    ? null
+    : getActiveUploadSessionForVideo(video, uploadSessions)
   const canRetryProcessing =
+    !isCancelled &&
     shouldShowPipeline &&
     video.status === "failed" &&
     Boolean(video.sourceDisk && video.sourcePath)
@@ -263,7 +267,7 @@ export default function DashboardVideoDetailPage() {
             <div className="rounded-lg border bg-surface p-4">
               <p className="font-heading text-sm font-semibold">Quick actions</p>
               <div className="mt-4 flex flex-wrap gap-2">
-                {activeUploadSession && (
+                {!isCancelled && activeUploadSession && (
                   <Link
                     className={buttonVariants({
                       className: "gap-2 bg-gradient-primary text-white",
@@ -274,7 +278,7 @@ export default function DashboardVideoDetailPage() {
                     Continue upload
                   </Link>
                 )}
-                {shouldShowPipeline && (
+                {!isCancelled && shouldShowPipeline && (
                   <button
                     className={buttonVariants({
                       className: "gap-2",

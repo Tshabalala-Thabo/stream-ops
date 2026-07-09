@@ -105,6 +105,12 @@ class VideoController extends Controller
             ]);
         }
 
+        if ($video->status === VideoStatus::Cancelled) {
+            throw ValidationException::withMessages([
+                'video' => 'Cancelled videos cannot be retried.',
+            ]);
+        }
+
         if ($video->source_disk === null || $video->source_path === null) {
             throw ValidationException::withMessages([
                 'video' => 'This video does not have a source file to process.',

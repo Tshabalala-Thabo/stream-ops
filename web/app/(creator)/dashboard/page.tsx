@@ -102,6 +102,10 @@ function canRetryVideoProcessing(video: Video) {
   return video.status === "failed" && Boolean(video.sourceDisk && video.sourcePath)
 }
 
+function isCancelledVideo(video: Video) {
+  return video.status === "cancelled"
+}
+
 function isActiveUploadSession(session: UploadSession) {
   if (session.status !== "active") {
     return false
@@ -167,6 +171,7 @@ function VideoActionsMenu({
   video,
 }: VideoActionsMenuProps) {
   const [isDeleteDialogOpen, setIsDeleteDialogOpen] = React.useState(false)
+  const canShowMutableActions = !isCancelledVideo(video)
 
   return (
     <>
@@ -184,7 +189,7 @@ function VideoActionsMenu({
           <MoreHorizontal />
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-44">
-          {activeUploadSession && (
+          {canShowMutableActions && activeUploadSession && (
             <DropdownMenuItem
               render={<Link href={`/upload?resumeSessionId=${activeUploadSession.id}`} />}
             >
@@ -192,17 +197,23 @@ function VideoActionsMenu({
               Continue upload
             </DropdownMenuItem>
           )}
-          <DropdownMenuItem render={<Link href={`/dashboard/videos/${video.id}`} />}>
-            <ExternalLink />
-            Open
-          </DropdownMenuItem>
-          {video.status !== "uploading" && canRetryVideoProcessing(video) && (
+          {canShowMutableActions && (
             <DropdownMenuItem render={<Link href={`/dashboard/videos/${video.id}`} />}>
-              <RotateCcw />
-              Retry processing
+              <ExternalLink />
+              Open
             </DropdownMenuItem>
           )}
-          <DropdownMenuSeparator />
+          {canShowMutableActions &&
+            video.status !== "uploading" &&
+            canRetryVideoProcessing(video) && (
+              <DropdownMenuItem
+                render={<Link href={`/dashboard/videos/${video.id}`} />}
+              >
+                <RotateCcw />
+                Retry processing
+              </DropdownMenuItem>
+            )}
+          {canShowMutableActions && <DropdownMenuSeparator />}
           <DropdownMenuItem
             onClick={() => setIsDeleteDialogOpen(true)}
             variant="destructive"
