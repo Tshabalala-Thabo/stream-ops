@@ -1,0 +1,13 @@
+{
+  "name": "stream-ops-aws",
+  "version": "0.1.0",
+  "private": true,
+  "description": "Minimal Next.js and Node.js AWS DVA-C02 practical video pipeline lab.",
+  "scripts": {
+    "lint": "echo \"No lint target yet\"",
+    "test": "echo \"No test target yet\""
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

@@ -1,442 +1,134 @@
-# StreamOps
+# StreamOps AWS
 
-![StreamOps logo](./web/public/logo/horizontal-light-mode.png)
+StreamOps AWS is a minimal Next.js + Node.js rebuild of the original StreamOps video pipeline, designed as a practical study project for the AWS Certified Developer - Associate exam.
 
-A cloud-native video processing platform that demonstrates scalable file uploads, object storage integration, asynchronous processing pipelines, distributed queues, and background workers.
+The goal is not to rebuild every feature from the Laravel version. The goal is to practice AWS developer skills with a focused application:
 
-## Overview
+- Authenticated creator upload flow
+- Direct browser-to-S3 multipart uploads
+- DynamoDB-backed workflow state
+- SQS-based asynchronous processing
+- Node.js worker/Lambda handlers
+- S3-hosted generated video assets
+- CloudWatch logs, metrics, traces, and failure drills
 
-StreamOps is a portfolio project designed to showcase modern backend engineering concepts commonly used in media platforms such as YouTube, Vimeo, TikTok, and enterprise video management systems.
+## Exam Focus
 
-The platform allows users to upload large video files, store them in object storage, process them asynchronously, generate thumbnails, transcode videos into multiple resolutions, and monitor processing status in real-time.
+The project is organized around the current DVA-C02 domains:
 
-The primary goal of this project is to demonstrate expertise in:
+- Development with AWS Services: 32%
+- Security: 26%
+- Deployment: 24%
+- Troubleshooting and Optimization: 18%
 
-* Large file uploads
-* Multipart/chunked upload workflows
-* Object storage systems
-* Distributed job queues
-* Background workers
-* Video transcoding
-* Segment-based video streaming
-* Cloud architecture
-* System design
-* Dockerized deployments
-* API development
+See [docs/AWS_DVA_STUDY_MAP.md](docs/AWS_DVA_STUDY_MAP.md) for the feature-to-exam mapping.
 
----
+## Target Stack
 
-## Features
+- Next.js App Router
+- React
+- Node.js
+- TypeScript
+- AWS SDK for JavaScript v3
+- Amazon S3
+- Amazon DynamoDB
+- Amazon SQS with DLQ
+- AWS Lambda
+- Amazon Cognito
+- IAM, KMS, Secrets Manager, Parameter Store/AppConfig
+- Amazon CloudWatch and AWS X-Ray
+- AWS SAM for infrastructure
 
-### Upload Management
-
-* Secure upload sessions
-* Presigned upload URLs
-* Multipart/chunked uploads
-* Upload progress tracking
-* Upload validation
-
-### Video Processing
-
-* Background processing pipeline
-* FFmpeg-powered transcoding
-* Thumbnail generation
-* Metadata extraction
-* Multi-resolution output generation
-* HLS playlist and playback segment generation
-
-### Queue Processing
-
-* Redis-backed job queues
-* Retryable jobs
-* Failed job handling
-* Worker monitoring
-* Horizontal worker scaling
-
-### Storage
-
-* Original video storage
-* Processed video storage
-* Thumbnail storage
-* Object storage abstraction
-
-### Monitoring
-
-* Processing status updates
-* Job execution tracking
-* Queue monitoring dashboard
-* Error reporting
-
----
-
-## System Architecture
-
-```text
-┌─────────────┐
-│   Next.js   │
-│ Frontend UI │
-└──────┬──────┘
-       │
-       ▼
-┌─────────────┐
-│ Laravel API │
-└──────┬──────┘
-       │
-       ├───────────────┐
-       │               │
-       ▼               ▼
-┌───────────┐   ┌─────────────┐
-│ Database  │   │ Object      │
-│ MySQL     │   │ Storage     │
-└───────────┘   │ S3 / R2     │
-                └──────┬──────┘
-                       │
-                       ▼
-                ┌─────────────┐
-                │ Redis Queue │
-                └──────┬──────┘
-                       │
-                       ▼
-                ┌─────────────┐
-                │ FFmpeg      │
-                │ Workers     │
-                └──────┬──────┘
-                       │
-                       ▼
-                ┌─────────────┐
-                │ Processed   │
-                │ Outputs     │
-                └─────────────┘
-```
-
----
-
-## Processing Workflow
-
-For the detailed current upload lifecycle, database writes, storage paths, status transitions, queue handoff, and Mermaid-ready dataflow notes, see [StreamOps Upload Video Dataflow](./UPLOAD_VIDEO_DATAFLOW.md).
-
-### 1. Upload Creation
-
-User initiates an upload request.
-
-The API:
-
-* Creates a video record
-* Creates an upload session
-* Generates presigned upload URLs for one or more file parts
-* Returns upload configuration, chunk size, and object storage metadata
-
-### 2. Chunked File Upload
-
-The frontend uploads the original video directly to object storage using multipart/chunked uploads.
-
-This upload flow is designed for reliable ingestion of large video files:
-
-* The browser splits the upload into numbered parts
-* Each part is uploaded directly to object storage
-* Failed parts can be retried without restarting the whole upload
-* Upload progress can be tracked per part and for the whole file
-* Object storage combines the parts into the final original video object
-
-The original video is kept as the source/master file for future processing or reprocessing.
-
-### 3. Queue Dispatch
-
-Once upload completes:
-
-* The frontend confirms upload completion with the API
-* The API verifies the completed object in storage
-* Video status becomes `queued`
-* Processing jobs are dispatched
-
-### 4. Background Processing
-
-Workers:
-
-* Download source video
-* Extract metadata
-* Generate thumbnail
-* Generate multiple playback resolutions
-* Generate HLS playlists and playback segments
-* Upload generated assets
-
-### 5. Completion
-
-Video status becomes:
-
-```text
-completed
-```
-
-Available outputs:
-
-* Thumbnail
-* HLS master playlist
-* 480p playlist and segments
-* 720p playlist and segments
-* 1080p playlist and segments
-
----
-
-## Upload Chunking Flow
-
-Upload chunking is used when a large source video is uploaded into object storage.
+## Minimal Architecture
 
 ```text
 Browser
-   ↓
-Create upload session
-   ↓
-Laravel API creates video record and multipart upload
-   ↓
-Browser uploads parts directly to S3 / R2 / MinIO
-   ↓
-Browser confirms upload completion
-   ↓
-Laravel API marks video as uploaded
-   ↓
-Laravel API dispatches processing job
+  |
+  v
+Next.js App
+  |
+  v
+Node/TypeScript domain logic
+  |
+  +--> Cognito
+  +--> S3
+  +--> DynamoDB
+  +--> SQS + DLQ
+  +--> Lambda
+  +--> Optional Node worker for FFmpeg
+  +--> CloudWatch + X-Ray
 ```
 
-This flow is about reliability and scalability during upload. The API coordinates the upload, but the large video bytes do not need to pass through the Laravel application server.
-
----
-
-## Playback Segmenting Flow
-
-Playback segmenting is used after the source video has been uploaded and processing begins.
+## Planned Repo Shape
 
 ```text
-Original video
-   ↓
-FFmpeg worker
-   ↓
-Generate 480p / 720p / 1080p renditions
-   ↓
-Split each rendition into small playback segments
-   ↓
-Generate HLS playlists
-   ↓
-Upload playlists and segments to object storage
-   ↓
-Video player streams segments from storage/CDN
+apps/
+  web/                  # Next.js application; deploy to Amplify Hosting, App Runner, ECS, or Elastic Beanstalk
+  worker/               # Node.js SQS/FFmpeg worker; deploy to Lambda, ECS/Fargate, or App Runner
+packages/
+  core/                 # shared domain types, validation, state transitions; imported by apps and handlers
+  aws/                  # shared AWS SDK adapters for S3, DynamoDB, SQS, Cognito, and config
+  observability/        # shared logs, metrics, traces, and correlation helpers
+infra/
+  sam/                  # provisions S3, DynamoDB, SQS/DLQ, Lambda, Cognito, IAM, CloudWatch, and X-Ray
+docs/
+  *.md                  # architecture and study notes
 ```
 
-This flow is about streaming performance. Instead of serving one large processed video file, the player loads a playlist and downloads small segments as needed.
+This is a monorepo for one application with multiple deployment targets. `apps/web`,
+`apps/worker`, Lambda handlers, and `infra` can be deployed independently when their
+part of the system changes. The shared `packages/*` directories are not standalone
+microservices; they are reusable TypeScript libraries consumed by the deployable
+apps and handlers.
 
-The project can support adaptive bitrate playback by generating multiple quality levels and a master playlist that lets the player switch between qualities based on network speed.
-
----
-
-## Media Storage Strategy
-
-StreamOps separates source files from generated playback assets:
-
-* Original/source video: kept permanently as the master file
-* Thumbnail: kept as a generated preview asset
-* HLS playlists: kept as playback entry points
-* HLS segments: stored in object storage under structured output paths
-
-Spatie Media Library can be used as the media catalog for the source video, thumbnails, and primary playback playlist records. Individual HLS segment files should be stored in object storage as grouped output assets rather than tracked as separate database records for every segment.
-
----
-
-## Technology Stack
-
-### Frontend
-
-* Next.js
-* TypeScript
-* Tailwind CSS
-* TanStack Query
-
-### Backend
-
-* Laravel
-* PHP 8.4
-* REST API
-
-### Database
-
-* MySQL
-
-### Queue
-
-* Redis
-* Laravel Horizon
-
-### Storage
-
-* Amazon S3
-* Cloudflare R2
-* MinIO (local development)
-
-### Processing
-
-* FFmpeg
-
-### Infrastructure
-
-* Docker
-* Docker Compose
-* Nginx
-
-### Deployment
-
-* AWS EC2
-* Oracle Cloud VM
-* DigitalOcean Droplets
-
----
-
-## Database Design
-
-### videos
-
-| Column        | Type      |
-| ------------- | --------- |
-| id            | UUID      |
-| filename      | string    |
-| original_path | string    |
-| status        | enum      |
-| duration      | integer   |
-| size          | bigint    |
-| mime_type     | string    |
-| error_message | text      |
-| created_at    | timestamp |
-
-### video_outputs
-
-| Column       | Type      |
-| ------------ | --------- |
-| id           | UUID      |
-| video_id     | UUID      |
-| type         | string    |
-| resolution   | string    |
-| storage_path | string    |
-| size         | bigint    |
-| created_at   | timestamp |
-
----
-
-## Status Lifecycle
+Expected deployment splits:
 
 ```text
-uploaded
-    ↓
-queued
-    ↓
-processing
-    ↓
-completed
+apps/web
+  -> Amplify Hosting for the simplest Next.js deployment
+  -> or a standalone Next.js container on App Runner, ECS, or Elastic Beanstalk
+
+apps/worker
+  -> Lambda for lightweight queue handlers
+  -> or ECS/Fargate/App Runner for FFmpeg-heavy processing
+
+infra/sam
+  -> CloudFormation-managed AWS resources and environment configuration
+
+S3
+  -> source uploads, generated thumbnails, HLS manifests, and video segments
+
+DynamoDB
+  -> videos, upload sessions, processing runs, and renditions
+
+SQS + DLQ
+  -> asynchronous processing jobs and failed-message redrive practice
+
+Cognito
+  -> sign-up, sign-in, JWT issuer, and creator identity
 ```
 
-Failure path:
+## First Milestone
 
-```text
-processing
-    ↓
-failed
-```
+Build the upload workflow with mocked AWS adapters first:
 
----
+1. Define domain types and workflow states.
+2. Create upload sessions.
+3. Simulate multipart upload completion.
+4. Queue a processing message.
+5. Show video status in the dashboard.
 
-## Future Enhancements
+After that, replace the mocks with real S3 multipart upload, DynamoDB persistence, and SQS.
 
-### Phase 2
+## Documentation
 
-* Advanced adaptive bitrate tuning
-* CDN delivery and signed playback URLs
-* Video trimming
-* Watermarking
-* Subtitle generation
-
-### Phase 3
-
-* AI-powered scene detection
-* Automatic video summarization
-* Object recognition
-* Content moderation
-* Speech-to-text transcription
-
-### Phase 4
-
-* Kubernetes deployment
-* Event-driven architecture
-* Multiple processing services
-* Auto-scaling workers
-
----
-
-## Local Development
-
-### Prerequisites
-
-* Docker
-* Docker Compose
-* PHP 8.4
-* Node.js 22+
-* Redis
-* FFmpeg
-
-### Installation
-
-```bash
-git clone https://github.com/your-username/stream-ops.git
-
-cd stream-ops
-
-cp .env.example .env
-
-docker compose up -d
-
-composer install
-
-npm install
-
-php artisan migrate
-
-php artisan horizon
-```
-
-### Run Frontend
-
-```bash
-npm run dev
-```
-
-### Run Backend
-
-```bash
-php artisan serve
-```
-
----
-
-## Learning Objectives
-
-This project demonstrates practical experience with:
-
-* Cloud-native application design
-* Distributed systems concepts
-* Object storage architecture
-* Queue-based processing
-* Background job orchestration
-* Video processing pipelines
-* Dockerized development environments
-* Scalable backend architecture
-
----
-
-## Portfolio Value
-
-StreamOps is designed as a production-style engineering project that showcases skills commonly required for:
-
-* Backend Engineer
-* Software Engineer
-* Platform Engineer
-* Cloud Engineer
-* DevOps Engineer
-* Solutions Architect
-
-The architecture intentionally mirrors patterns used by large-scale media and content delivery platforms while remaining small enough to build and maintain as an individual portfolio project.
+- [Architecture](docs/ARCHITECTURE.md)
+- [AWS DVA Study Map](docs/AWS_DVA_STUDY_MAP.md)
+- [Rebuild Phases](docs/REBUILD_PHASES.md)
+- [Domain Model](docs/DOMAIN_MODEL.md)
+- [Acceptance Scenarios](docs/ACCEPTANCE_SCENARIOS.md)
+- [AWS Services](docs/AWS_SERVICES.md)
+- [Security Plan](docs/SECURITY_PLAN.md)
+- [Deployment Plan](docs/DEPLOYMENT_PLAN.md)
+- [Observability Plan](docs/OBSERVABILITY_PLAN.md)
+- [Local Development](docs/LOCAL_DEVELOPMENT.md)
