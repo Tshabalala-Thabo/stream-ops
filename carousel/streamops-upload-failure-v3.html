@@ -348,6 +348,80 @@
         gap: 24px;
       }
 
+      .video-chunk-visual {
+        position: relative;
+        overflow: hidden;
+        min-height: 470px;
+        border: 2px solid rgba(21, 101, 246, 0.2);
+        border-radius: 8px;
+        background: var(--ink);
+        box-shadow: 0 26px 72px rgba(3, 17, 39, 0.2);
+      }
+
+      .video-chunk-bg {
+        position: absolute;
+        inset: 0;
+        width: 100%;
+        height: 100%;
+        object-fit: cover;
+      }
+
+      .video-chunk-visual::after {
+        content: "";
+        position: absolute;
+        inset: 0;
+        background:
+          linear-gradient(to bottom, rgba(3, 17, 39, 0.04), transparent 42%, rgba(3, 17, 39, 0.68)),
+          linear-gradient(90deg, rgba(12, 175, 211, 0.18), transparent 54%);
+      }
+
+      .video-label {
+        position: absolute;
+        top: 22px;
+        left: 22px;
+        z-index: 1;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.9);
+        color: var(--ink);
+        font-family:
+          "IBM Plex Mono",
+          "JetBrains Mono",
+          monospace;
+        font-size: 18px;
+        font-weight: 900;
+        letter-spacing: 0.04em;
+        padding: 11px 14px;
+        text-transform: uppercase;
+      }
+
+      .video-chunks {
+        position: absolute;
+        left: 22px;
+        right: 22px;
+        bottom: 22px;
+        z-index: 1;
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 10px;
+      }
+
+      .video-chunk-piece {
+        display: grid;
+        min-height: 70px;
+        place-items: center;
+        border: 1px solid rgba(255, 255, 255, 0.48);
+        border-radius: 8px;
+        background: rgba(255, 255, 255, 0.18);
+        color: white;
+        font-family:
+          "IBM Plex Mono",
+          "JetBrains Mono",
+          monospace;
+        font-size: 20px;
+        font-weight: 900;
+        backdrop-filter: blur(10px);
+      }
+
       .large-file {
         position: relative;
         display: grid;
@@ -384,14 +458,17 @@
       }
 
       .chunk.ok {
-        border-color: rgba(53, 211, 63, 0.42);
-        background: rgba(53, 211, 63, 0.12);
+        border-color: var(--green);
+        background: var(--green);
+        color: white;
+        box-shadow: 0 12px 28px rgba(53, 211, 63, 0.22);
       }
 
       .chunk.bad {
-        border-color: rgba(220, 38, 38, 0.34);
-        background: rgba(220, 38, 38, 0.1);
-        color: var(--danger);
+        border-color: var(--danger);
+        background: var(--danger);
+        color: white;
+        box-shadow: 0 12px 28px rgba(220, 38, 38, 0.2);
       }
 
       .retry-line {
@@ -415,6 +492,11 @@
         border-bottom: 1px solid var(--border);
         background: var(--surface-muted);
         padding: 18px 22px;
+      }
+
+      .product-head.window-head {
+        justify-content: flex-start;
+        gap: 16px;
       }
 
       .dots {
@@ -753,13 +835,13 @@
           <div class="content split">
             <div>
               <span class="eyebrow">Introducing StreamOps</span>
-              <h2>I am building StreamOps to explore this kind of media-platform engineering.</h2>
+              <h2>I built StreamOps to explore this kind of media-platform engineering.</h2>
               <p>It handles chunked uploads, resumable sessions, cancellation, and upload progress.</p>
             </div>
             <div class="panel product-panel">
-              <div class="product-head">
-                <span class="tiny-label">Upload session</span>
+              <div class="product-head window-head">
                 <div class="dots"><span class="dot"></span><span class="dot"></span><span class="dot"></span></div>
+                <span class="tiny-label">Upload session</span>
               </div>
               <div class="product-body screenshot-body">
                 <img class="upload-session-shot" src="../screenshots/upload.png" alt="StreamOps upload screen showing upload progress" />
@@ -788,18 +870,25 @@
               <p><strong>Split the large video into smaller pieces.</strong></p>
             </div>
             <div class="file-split">
-              <div class="large-file">10GB video</div>
-              <div class="chunk-grid">
-                <div class="chunk">01</div>
-                <div class="chunk">02</div>
-                <div class="chunk">03</div>
-                <div class="chunk">04</div>
-                <div class="chunk">05</div>
-                <div class="chunk">06</div>
-                <div class="chunk">07</div>
-                <div class="chunk">08</div>
-                <div class="chunk">09</div>
-                <div class="chunk">10</div>
+              <div class="video-chunk-visual" aria-label="Large video split into upload chunks">
+                <img
+                  class="video-chunk-bg"
+                  src="../screenshots/Screenshot 2026-07-19 at 00.47.52.png"
+                  alt="Sunset video frame used as the large video"
+                />
+                <span class="video-label">10GB video</span>
+                <div class="video-chunks" aria-hidden="true">
+                  <div class="video-chunk-piece">01</div>
+                  <div class="video-chunk-piece">02</div>
+                  <div class="video-chunk-piece">03</div>
+                  <div class="video-chunk-piece">04</div>
+                  <div class="video-chunk-piece">05</div>
+                  <div class="video-chunk-piece">06</div>
+                  <div class="video-chunk-piece">07</div>
+                  <div class="video-chunk-piece">08</div>
+                  <div class="video-chunk-piece">09</div>
+                  <div class="video-chunk-piece">10</div>
+                </div>
               </div>
             </div>
           </div>
