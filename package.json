@@ -1,13 +1,24 @@
 {
-  "name": "stream-ops-aws",
+  "name": "stream-ops",
   "version": "0.1.0",
   "private": true,
   "description": "Minimal Next.js and Node.js AWS DVA-C02 practical video pipeline lab.",
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
   "scripts": {
-    "lint": "echo \"No lint target yet\"",
-    "test": "echo \"No test target yet\""
+    "dev": "npm run dev -w apps/web",
+    "build": "npm run build -w apps/web",
+    "lint": "npm run lint --workspaces --if-present",
+    "test": "npm run test --workspaces --if-present",
+    "typecheck": "npm run typecheck --workspaces --if-present"
   },
   "engines": {
     "node": ">=20"
+  },
+  "devDependencies": {
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3"
   }
 }
