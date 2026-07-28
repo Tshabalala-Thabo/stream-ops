@@ -11,13 +11,16 @@ import {
   WorkflowError,
   completeUpload,
   expireUpload,
+  queueProcessing,
   validateCreateUploadInput,
   validateOwnerAccess,
   type CreateUploadInput,
   type EntityId,
+  type ProcessingRun,
   type UploadSession,
   type UploadedPart,
   type Video,
+  type VideoRendition,
 } from "@streamops/core"
 
 const UPLOAD_TTL_HOURS = 24
@@ -181,12 +184,65 @@ export class DynamoDBWorkflowStore {
     return (response.Items ?? []).map(toUploadSession)
   }
 
-  listProcessingRuns() {
+  async listProcessingRuns(videoId: EntityId, ownerId: EntityId) {
+    await this.getVideo(videoId, ownerId)
+
+    const response = await this.client.send(
+      new QueryCommand({
+        TableName: this.tableName,
+        KeyConditionExpression: "PK = :pk AND begins_with(SK, :sk)",
+        ExpressionAttributeValues: {
+          ":pk": videoPk(videoId),
+          ":sk": "RUN#",
+        },
+        ScanIndexForward: false,
+      })
+    )
+
+    return (response.Items ?? []).map(toProcessingRun)
+  }
+
+  listRenditions(_videoId: EntityId, _ownerId: EntityId): VideoRendition[] {
     return []
   }
 
-  listRenditions() {
-    return []
+  async queueProcessing(videoId: EntityId, ownerId: EntityId, now = new Date()) {
+    const video = await this.getVideo(videoId, ownerId)
+    const queued = queueProcessing(video, () => createId(), now)
+
+    await this.client.send(
+      new TransactWriteCommand({
+        TransactItems: [
+          {
+            Put: {
+              TableName: this.tableName,
+              Item: toVideoMetadataItem(queued.video),
+              ConditionExpression: "#status = :uploaded",
+              ExpressionAttributeNames: { "#status": "status" },
+              ExpressionAttributeValues: { ":uploaded": "uploaded" },
+            },
+          },
+          {
+            Put: {
+              TableName: this.tableName,
+              Item: toUserVideoItem(queued.video),
+              ConditionExpression: "#status = :uploaded",
+              ExpressionAttributeNames: { "#status": "status" },
+              ExpressionAttributeValues: { ":uploaded": "uploaded" },
+            },
+          },
+          {
+            Put: {
+              TableName: this.tableName,
+              Item: toProcessingRunItem(queued.run),
+              ConditionExpression: "attribute_not_exists(PK) AND attribute_not_exists(SK)",
+            },
+          },
+        ],
+      })
+    )
+
+    return queued
   }
 
   async completeUpload(sessionId: EntityId, ownerId: EntityId, parts: UploadedPart[], now = new Date()) {
@@ -431,6 +487,15 @@ function toUploadLookupItem(session: UploadSession): UploadLookupItem & { status
   }
 }
 
+function toProcessingRunItem(run: ProcessingRun): EntityItem {
+  return {
+    ...run,
+    PK: videoPk(run.videoId),
+    SK: `RUN#${run.id}`,
+    entityType: "PROCESSING_RUN",
+  }
+}
+
 function toVideo(item: Record<string, unknown>): Video {
   return {
     id: String(item.id),
@@ -465,6 +530,21 @@ function toUploadSession(item: Record<string, unknown>): UploadSession {
     originalFileSize: Number(item.originalFileSize),
     originalMimeType: String(item.originalMimeType),
     expiresAt: String(item.expiresAt),
+    createdAt: String(item.createdAt),
+    updatedAt: String(item.updatedAt),
+  }
+}
+
+function toProcessingRun(item: Record<string, unknown>): ProcessingRun {
+  return {
+    id: String(item.id),
+    videoId: String(item.videoId),
+    status: item.status as ProcessingRun["status"],
+    stage: item.stage as ProcessingRun["stage"],
+    metadata: item.metadata === null || item.metadata === undefined ? null : item.metadata as Record<string, unknown>,
+    error: item.error === null || item.error === undefined ? null : String(item.error),
+    startedAt: item.startedAt === null || item.startedAt === undefined ? null : String(item.startedAt),
+    finishedAt: item.finishedAt === null || item.finishedAt === undefined ? null : String(item.finishedAt),
     createdAt: String(item.createdAt),
     updatedAt: String(item.updatedAt),
   }
