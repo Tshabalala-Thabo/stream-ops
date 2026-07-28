@@ -2,7 +2,6 @@ import { DynamoDBClient } from "@aws-sdk/client-dynamodb"
 import {
   DynamoDBDocumentClient,
   GetCommand,
-  PutCommand,
   QueryCommand,
   TransactWriteCommand,
 } from "@aws-sdk/lib-dynamodb"
@@ -151,6 +150,43 @@ export class DynamoDBWorkflowStore {
     const session = toUploadSession(response.Item)
     validateOwnerAccess(session.ownerId, ownerId)
     return session
+  }
+
+  async listUploadSessions(ownerId: EntityId) {
+    const videos = await this.listVideos(ownerId)
+    const sessionsByVideo = await Promise.all(
+      videos.map((video) => this.listUploadSessionsForVideo(video.id, ownerId))
+    )
+
+    return sessionsByVideo
+      .flat()
+      .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt))
+  }
+
+  async listUploadSessionsForVideo(videoId: EntityId, ownerId: EntityId) {
+    await this.getVideo(videoId, ownerId)
+
+    const response = await this.client.send(
+      new QueryCommand({
+        TableName: this.tableName,
+        KeyConditionExpression: "PK = :pk AND begins_with(SK, :sk)",
+        ExpressionAttributeValues: {
+          ":pk": videoPk(videoId),
+          ":sk": "UPLOAD#",
+        },
+        ScanIndexForward: false,
+      })
+    )
+
+    return (response.Items ?? []).map(toUploadSession)
+  }
+
+  listProcessingRuns() {
+    return []
+  }
+
+  listRenditions() {
+    return []
   }
 
   async completeUpload(sessionId: EntityId, ownerId: EntityId, parts: UploadedPart[], now = new Date()) {
