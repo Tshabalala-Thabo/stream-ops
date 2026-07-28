@@ -3,6 +3,7 @@ export type {
   ProcessingRunStatus,
   UploadSession,
   UploadSessionStatus,
+  UploadedPart,
   Video,
   VideoRendition,
   VideoStatus,

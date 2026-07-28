@@ -10,7 +10,7 @@ import { Input } from "@/components/ui/input"
 import { Progress } from "@/components/ui/progress"
 import { Textarea } from "@/components/ui/textarea"
 import { completeUpload, createUpload, expireUpload } from "@/lib/workflow/client"
-import type { UploadSession, Video } from "@/lib/types"
+import type { UploadSession, UploadedPart, Video } from "@/lib/types"
 
 type UploadPhase = "idle" | "creating" | "uploading" | "completed" | "failed"
 
@@ -26,7 +26,7 @@ export function UploadFlow() {
 
   const canStart = title.trim().length > 0 && Boolean(file) && phase !== "creating" && phase !== "uploading"
 
-  async function startLocalUpload() {
+  async function startUpload() {
     if (!file) {
       return
     }
@@ -48,14 +48,26 @@ export function UploadFlow() {
       setSession(created.uploadSession)
       setPhase("uploading")
 
-      for (const nextProgress of [22, 41, 63, 84, 100]) {
-        await new Promise((resolve) => window.setTimeout(resolve, 180))
-        setProgress(nextProgress)
+      let uploadedParts: UploadedPart[] | undefined
+      if (created.presignedParts?.length) {
+        uploadedParts = await uploadFileParts(
+          file,
+          created.uploadSession.partSize,
+          created.presignedParts,
+          setProgress
+        )
+        setProgress(98)
+      } else {
+        for (const nextProgress of [22, 41, 63, 84, 100]) {
+          await new Promise((resolve) => window.setTimeout(resolve, 180))
+          setProgress(nextProgress)
+        }
       }
 
-      const completed = await completeUpload(created.uploadSession.id)
+      const completed = await completeUpload(created.uploadSession.id, uploadedParts)
       setVideo(completed.video)
       setSession(completed.session)
+      setProgress(100)
       setPhase("completed")
     } catch (nextError) {
       setError(nextError instanceof Error ? nextError.message : "Upload failed.")
@@ -118,7 +130,7 @@ export function UploadFlow() {
 
           <div className="space-y-2">
             <div className="flex items-center justify-between text-sm">
-              <span className="font-medium">Mock multipart upload</span>
+              <span className="font-medium">Multipart upload</span>
               <span className="font-mono text-muted-foreground">{progress}%</span>
             </div>
             <Progress value={progress} />
@@ -132,9 +144,9 @@ export function UploadFlow() {
           )}
 
           <div className="flex flex-wrap gap-2">
-            <Button className="gap-2" disabled={!canStart} onClick={startLocalUpload}>
+            <Button className="gap-2" disabled={!canStart} onClick={startUpload}>
               <UploadCloud />
-              {phase === "creating" || phase === "uploading" ? "Uploading" : "Start local upload"}
+              {phase === "creating" || phase === "uploading" ? "Uploading" : "Start upload"}
             </Button>
             <Button disabled={!session || session.status !== "active"} onClick={markExpired} variant="outline">
               Expire session
@@ -149,7 +161,7 @@ export function UploadFlow() {
       </section>
 
       <aside className="rounded-lg border bg-surface p-5">
-        <p className="font-heading text-sm font-semibold">Local session</p>
+        <p className="font-heading text-sm font-semibold">Upload session</p>
         <div className="mt-4 space-y-3 text-sm">
           <div>
             <p className="text-muted-foreground">Video ID</p>
@@ -166,11 +178,56 @@ export function UploadFlow() {
           {phase === "completed" && (
             <div className="flex items-center gap-2 rounded-md border border-success-border bg-success-light p-3 text-success-dark">
               <CheckCircle2 className="size-4" />
-              Upload completed locally
+              Upload completed
             </div>
           )}
         </div>
       </aside>
     </div>
   )
+}
+
+async function uploadFileParts(
+  file: File,
+  partSize: number,
+  presignedParts: Array<{ partNumber: number; url: string }>,
+  onProgress: (progress: number) => void
+): Promise<UploadedPart[]> {
+  let uploadedBytes = 0
+  const orderedParts = presignedParts.slice().sort((a, b) => a.partNumber - b.partNumber)
+  const uploadedParts: UploadedPart[] = []
+
+  for (const part of orderedParts) {
+    const start = (part.partNumber - 1) * partSize
+    const end = Math.min(start + partSize, file.size)
+    const body = file.slice(start, end)
+
+    if (body.size <= 0) {
+      throw new Error(`Upload part ${part.partNumber} is empty.`)
+    }
+
+    const response = await fetch(part.url, {
+      method: "PUT",
+      body,
+    })
+
+    if (!response.ok) {
+      throw new Error(`Upload part ${part.partNumber} failed with status ${response.status}.`)
+    }
+
+    const etag = response.headers.get("etag")
+    if (!etag) {
+      throw new Error("S3 did not expose an ETag header. Check the bucket CORS ExposeHeaders setting.")
+    }
+
+    uploadedBytes += body.size
+    uploadedParts.push({
+      partNumber: part.partNumber,
+      etag,
+      size: body.size,
+    })
+    onProgress(Math.min(94, 8 + Math.round((uploadedBytes / file.size) * 86)))
+  }
+
+  return uploadedParts
 }

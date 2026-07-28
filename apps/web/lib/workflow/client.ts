@@ -1,4 +1,4 @@
-import type { ProcessingRun, UploadSession, Video, VideoRendition } from "@/lib/types"
+import type { ProcessingRun, UploadSession, UploadedPart, Video, VideoRendition } from "@/lib/types"
 
 export type DashboardPayload = {
   videos: Video[]
@@ -62,10 +62,13 @@ export function createUpload(payload: {
   })
 }
 
-export function completeUpload(sessionId: string) {
+export function completeUpload(sessionId: string, parts?: UploadedPart[]) {
   return requestJson<{ video: Video; session: UploadSession }>(
     `/api/workflow/uploads/${sessionId}/complete`,
-    { method: "POST" }
+    {
+      method: "POST",
+      body: JSON.stringify(parts ? { parts } : {}),
+    }
   )
 }
 
