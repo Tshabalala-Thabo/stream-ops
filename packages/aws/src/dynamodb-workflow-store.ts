@@ -49,7 +49,14 @@ export class DynamoDBWorkflowStore {
       })
   }
 
-  async createUpload(input: CreateUploadInput & { objectKey: string; multipartUploadId: string }) {
+  async createUpload(
+    input: CreateUploadInput & {
+      objectKey: string
+      multipartUploadId: string
+      videoId?: EntityId
+      uploadSessionId?: EntityId
+    }
+  ) {
     validateCreateUploadInput(input)
 
     const created = createAwsUpload(input)
@@ -266,11 +273,18 @@ export class DynamoDBWorkflowStore {
   }
 }
 
-function createAwsUpload(input: CreateUploadInput & { objectKey: string; multipartUploadId: string }) {
+function createAwsUpload(
+  input: CreateUploadInput & {
+    objectKey: string
+    multipartUploadId: string
+    videoId?: EntityId
+    uploadSessionId?: EntityId
+  }
+) {
   const now = input.now ?? new Date()
   const timestamp = now.toISOString()
-  const videoId = createId()
-  const uploadSessionId = createId()
+  const videoId = input.videoId ?? createId()
+  const uploadSessionId = input.uploadSessionId ?? createId()
   const totalParts = Math.max(1, Math.ceil(input.fileSize / DEFAULT_PART_SIZE))
   const expiresAt = new Date(now.getTime() + UPLOAD_TTL_HOURS * 60 * 60 * 1000)
 

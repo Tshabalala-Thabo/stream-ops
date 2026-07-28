@@ -12,6 +12,17 @@ export type VideoDetailPayload = {
   renditions: VideoRendition[]
 }
 
+export type PresignedUploadPart = {
+  partNumber: number
+  url: string
+}
+
+export type CreateUploadPayload = {
+  video: Video
+  uploadSession: UploadSession
+  presignedParts?: PresignedUploadPart[]
+}
+
 async function requestJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(path, {
     ...init,
@@ -45,7 +56,7 @@ export function createUpload(payload: {
   fileSize: number
   mimeType: string
 }) {
-  return requestJson<{ video: Video; uploadSession: UploadSession }>("/api/workflow/uploads", {
+  return requestJson<CreateUploadPayload>("/api/workflow/uploads", {
     method: "POST",
     body: JSON.stringify(payload),
   })

@@ -2,9 +2,9 @@ import { NextResponse } from "next/server"
 
 import { WorkflowError } from "@streamops/core"
 
-export function workflowJson<T>(callback: () => T) {
+export async function workflowJson<T>(callback: () => T | Promise<T>) {
   try {
-    return NextResponse.json(callback())
+    return NextResponse.json(await callback())
   } catch (error) {
     if (error instanceof WorkflowError) {
       return NextResponse.json(

@@ -4,6 +4,8 @@ import test from "node:test"
 import { InMemoryWorkflowStore, WorkflowError } from "./index"
 
 const ownerId = "local-creator-1"
+const uploadCreatedAt = new Date("2026-07-27T10:00:00.000Z")
+const beforeUploadExpiry = new Date("2026-07-27T11:00:00.000Z")
 
 function createUpload(store = new InMemoryWorkflowStore()) {
   return store.createUpload({
@@ -13,7 +15,7 @@ function createUpload(store = new InMemoryWorkflowStore()) {
     fileName: "launch-recap.mp4",
     fileSize: 18_000_000,
     mimeType: "video/mp4",
-    now: new Date("2026-07-27T10:00:00.000Z"),
+    now: uploadCreatedAt,
   })
 }
 
@@ -29,7 +31,7 @@ test("upload completion moves session and video to completed/uploaded", () => {
   const store = new InMemoryWorkflowStore()
   const { uploadSession } = createUpload(store)
 
-  const completed = store.completeUpload(uploadSession.id, ownerId)
+  const completed = store.completeUpload(uploadSession.id, ownerId, beforeUploadExpiry)
 
   assert.equal(completed.session.status, "completed")
   assert.equal(completed.video.status, "uploaded")
@@ -39,7 +41,7 @@ test("upload completion moves session and video to completed/uploaded", () => {
 test("processing can queue, start, and complete with generated assets", () => {
   const store = new InMemoryWorkflowStore()
   const { uploadSession } = createUpload(store)
-  const { video } = store.completeUpload(uploadSession.id, ownerId)
+  const { video } = store.completeUpload(uploadSession.id, ownerId, beforeUploadExpiry)
 
   const queued = store.queueProcessing(video.id, ownerId)
   const started = store.startProcessing(video.id, ownerId)
@@ -55,7 +57,7 @@ test("processing can queue, start, and complete with generated assets", () => {
 test("processing failure stores useful error details", () => {
   const store = new InMemoryWorkflowStore()
   const { uploadSession } = createUpload(store)
-  const { video } = store.completeUpload(uploadSession.id, ownerId)
+  const { video } = store.completeUpload(uploadSession.id, ownerId, beforeUploadExpiry)
   store.queueProcessing(video.id, ownerId)
 
   const failed = store.failProcessing(video.id, ownerId, "FFmpeg probe failed")
