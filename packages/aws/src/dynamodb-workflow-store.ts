@@ -9,9 +9,12 @@ import {
 import {
   DEFAULT_PART_SIZE,
   WorkflowError,
+  completeProcessing,
   completeUpload,
   expireUpload,
+  failProcessing,
   queueProcessing,
+  startProcessing,
   validateCreateUploadInput,
   validateOwnerAccess,
   type CreateUploadInput,
@@ -245,6 +248,50 @@ export class DynamoDBWorkflowStore {
     return queued
   }
 
+  async startProcessing(videoId: EntityId, ownerId: EntityId, runId?: EntityId, now = new Date()) {
+    const video = await this.getVideo(videoId, ownerId)
+    const run = runId
+      ? await this.getProcessingRun(videoId, ownerId, runId)
+      : await this.getLatestProcessingRun(videoId, ownerId)
+    const started = startProcessing(video, run, now)
+
+    await this.writeVideoAndRun(started.video, started.run, "queued", "queued")
+
+    return started
+  }
+
+  async completeProcessing(videoId: EntityId, ownerId: EntityId, runId?: EntityId, now = new Date()) {
+    const video = await this.getVideo(videoId, ownerId)
+    const run = runId
+      ? await this.getProcessingRun(videoId, ownerId, runId)
+      : await this.getLatestProcessingRun(videoId, ownerId)
+    const completed = completeProcessing(video, run, now)
+    const videoWithAwsAssetKeys = {
+      ...completed.video,
+      thumbnailKey: `generated/${ownerId}/${videoId}/thumbnail.jpg`,
+      playbackManifestKey: `generated/${ownerId}/${videoId}/hls/master.m3u8`,
+    }
+
+    await this.writeVideoAndRun(videoWithAwsAssetKeys, completed.run, "processing", "running")
+
+    return {
+      ...completed,
+      video: videoWithAwsAssetKeys,
+    }
+  }
+
+  async failProcessing(videoId: EntityId, ownerId: EntityId, error: string, runId?: EntityId, now = new Date()) {
+    const video = await this.getVideo(videoId, ownerId)
+    const run = runId
+      ? await this.getProcessingRun(videoId, ownerId, runId)
+      : await this.getLatestProcessingRun(videoId, ownerId)
+    const failed = failProcessing(video, run, error, now)
+
+    await this.writeVideoAndRun(failed.video, failed.run, video.status, run.status)
+
+    return failed
+  }
+
   async completeUpload(sessionId: EntityId, ownerId: EntityId, parts: UploadedPart[], now = new Date()) {
     const session = await this.getUploadSession(sessionId, ownerId)
     const video = await this.getVideo(session.videoId, ownerId)
@@ -363,6 +410,74 @@ export class DynamoDBWorkflowStore {
     validateOwnerAccess(lookup.ownerId, ownerId)
     return lookup
   }
+
+  private async getProcessingRun(videoId: EntityId, ownerId: EntityId, runId: EntityId) {
+    await this.getVideo(videoId, ownerId)
+
+    const response = await this.client.send(
+      new GetCommand({
+        TableName: this.tableName,
+        Key: processingRunKey(videoId, runId),
+      })
+    )
+
+    if (!response.Item) {
+      throw new WorkflowError("Processing run was not found.", "processing_run_not_found")
+    }
+
+    return toProcessingRun(response.Item)
+  }
+
+  private async getLatestProcessingRun(videoId: EntityId, ownerId: EntityId) {
+    const run = (await this.listProcessingRuns(videoId, ownerId))[0]
+
+    if (!run) {
+      throw new WorkflowError("Processing run was not found.", "processing_run_not_found")
+    }
+
+    return run
+  }
+
+  private async writeVideoAndRun(
+    video: Video,
+    run: ProcessingRun,
+    expectedVideoStatus: Video["status"],
+    expectedRunStatus: ProcessingRun["status"]
+  ) {
+    await this.client.send(
+      new TransactWriteCommand({
+        TransactItems: [
+          {
+            Put: {
+              TableName: this.tableName,
+              Item: toVideoMetadataItem(video),
+              ConditionExpression: "#status = :expected",
+              ExpressionAttributeNames: { "#status": "status" },
+              ExpressionAttributeValues: { ":expected": expectedVideoStatus },
+            },
+          },
+          {
+            Put: {
+              TableName: this.tableName,
+              Item: toUserVideoItem(video),
+              ConditionExpression: "#status = :expected",
+              ExpressionAttributeNames: { "#status": "status" },
+              ExpressionAttributeValues: { ":expected": expectedVideoStatus },
+            },
+          },
+          {
+            Put: {
+              TableName: this.tableName,
+              Item: toProcessingRunItem(run),
+              ConditionExpression: "#status = :expected",
+              ExpressionAttributeNames: { "#status": "status" },
+              ExpressionAttributeValues: { ":expected": expectedRunStatus },
+            },
+          },
+        ],
+      })
+    )
+  }
 }
 
 function createAwsUpload(
@@ -440,6 +555,10 @@ function videoMetadataKey(videoId: EntityId) {
 
 function uploadSessionKey(videoId: EntityId, sessionId: EntityId) {
   return { PK: videoPk(videoId), SK: `UPLOAD#${sessionId}` }
+}
+
+function processingRunKey(videoId: EntityId, runId: EntityId) {
+  return { PK: videoPk(videoId), SK: `RUN#${runId}` }
 }
 
 function uploadLookupKey(sessionId: EntityId) {
