@@ -86,6 +86,7 @@ export function VideoDetailClient({ videoId }: { videoId: string }) {
   const latestRun = data?.processingRuns[0]
   const latestSession = data?.uploadSessions[0]
   const assetAccess = data?.assetAccess
+  const shouldShowPipeline = video ? video.status !== "ready" : false
 
   return (
     <main className="min-h-[calc(100vh-4rem)] bg-background text-foreground">
@@ -129,7 +130,14 @@ export function VideoDetailClient({ videoId }: { videoId: string }) {
         {video && data && (
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
             <div className="space-y-6">
-              <PipelineTimeline status={video.status} />
+              {shouldShowPipeline && (
+                <PipelineTimeline
+                  processingRuns={data.processingRuns}
+                  renditions={data.renditions}
+                  uploadSessions={data.uploadSessions}
+                  video={video}
+                />
+              )}
 
               <section className="rounded-lg border bg-surface p-5">
                 <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
