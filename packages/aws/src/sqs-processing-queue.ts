@@ -20,6 +20,7 @@ export type ReceivedProcessingMessage = {
   id: string
   receiptHandle: string
   body: unknown
+  attributes: Record<string, string>
 }
 
 export class SqsProcessingQueue {
@@ -55,12 +56,14 @@ export class SqsProcessingQueue {
     )
   }
 
-  async receiveMessages(options?: { maxMessages?: number; waitTimeSeconds?: number }) {
+  async receiveMessages(options?: { maxMessages?: number; visibilityTimeoutSeconds?: number; waitTimeSeconds?: number }) {
     const response = await this.client.send(
       new ReceiveMessageCommand({
         QueueUrl: this.queueUrl,
         MaxNumberOfMessages: options?.maxMessages ?? 1,
+        VisibilityTimeout: options?.visibilityTimeoutSeconds,
         WaitTimeSeconds: options?.waitTimeSeconds ?? 10,
+        AttributeNames: ["All"],
         MessageAttributeNames: ["All"],
       })
     )
@@ -74,6 +77,7 @@ export class SqsProcessingQueue {
         id: message.MessageId,
         receiptHandle: message.ReceiptHandle,
         body: parseMessageBody(message.Body),
+        attributes: message.Attributes ?? {},
       }
     })
   }

@@ -356,7 +356,7 @@
         <p class="summary">A practical progress map for the video workflow rebuild, from local domain skeleton to AWS storage, queues, processing, deployment, security, and operations.</p>
       </div>
       <aside class="scorecard">
-        <strong>56%</strong>
+        <strong>58%</strong>
         <span>overall rebuild progress</span>
       </aside>
     </header>
@@ -365,7 +365,7 @@
       <div class="phase-pill"><b>Phase 0</b><strong>100%</strong><div class="meter"><span style="width:100%"></span></div></div>
       <div class="phase-pill"><b>Phase 1</b><strong>100%</strong><div class="meter"><span style="width:100%"></span></div></div>
       <div class="phase-pill"><b>Phase 2</b><strong>100%</strong><div class="meter"><span style="width:100%"></span></div></div>
-      <div class="phase-pill"><b>Phase 3</b><strong>90%</strong><div class="meter"><span style="width:90%"></span></div></div>
+      <div class="phase-pill"><b>Phase 3</b><strong>93%</strong><div class="meter"><span style="width:93%"></span></div></div>
       <div class="phase-pill"><b>Phase 4</b><strong>10%</strong><div class="meter"><span style="width:10%; background:var(--next)"></span></div></div>
       <div class="phase-pill"><b>Phase 5</b><strong>10%</strong><div class="meter"><span style="width:10%; background:var(--next)"></span></div></div>
       <div class="phase-pill"><b>Phase 6</b><strong>5%</strong><div class="meter"><span style="width:5%; background:var(--todo)"></span></div></div>
@@ -492,7 +492,7 @@
     <section class="phase">
       <div class="phase-head">
         <div><h2>Phase 3: Queue And Processing</h2><p>Goal: add asynchronous processing.</p></div>
-        <div class="phase-progress">90%</div>
+        <div class="phase-progress">93%</div>
       </div>
       <div class="phase-body">
         <div>
@@ -510,8 +510,8 @@
             <li class="check done"><span class="box">✓</span><span>Verify HLS end to end on a fresh upload after latest HLS code.</span></li>
             <li class="check done"><span class="box">✓</span><span>Add playback surface or manifest/asset inspection link.</span></li>
             <li class="check done"><span class="box">✓</span><span>Add private S3 HLS playback proxy and in-app HLS player.</span></li>
-            <li class="check"><span class="box"></span><span>Grant playback proxy <code>s3:GetObject</code> access to generated HLS assets and verify in-browser playback.</span></li>
-            <li class="check"><span class="box"></span><span>Add explicit DLQ/failure test scenario.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Grant playback proxy <code>s3:GetObject</code> access to generated HLS assets and verify in-browser playback.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Add explicit DLQ/failure test scenario.</span></li>
             <li class="check"><span class="box"></span><span>Improve worker logs around SQS message IDs, run IDs, and asset counts.</span></li>
           </ul>
         </div>
@@ -618,8 +618,7 @@
     <section class="next-panel">
       <h2>Current Next Steps</h2>
       <ol class="steps">
-        <li>Grant playback proxy <code>s3:GetObject</code> access to generated HLS assets and verify in-browser playback.</li>
-        <li>Add an intentional worker failure test and confirm DLQ behavior.</li>
+        <li>Run the DLQ failure drill and confirm the failed message is visible in the DLQ.</li>
         <li>Improve worker logs around SQS message IDs, run IDs, and asset counts.</li>
         <li>Start Phase 5 SAM infrastructure for S3, DynamoDB, SQS, and the Lambda-ready worker.</li>
         <li>Start Phase 4 Cognito after deployment basics are stable.</li>

@@ -6,6 +6,8 @@
   "scripts": {
     "dev": "tsx src/index.ts",
     "once": "tsx src/index.ts --once",
+    "poison": "tsx src/send-poison-message.ts",
+    "dlq:peek": "tsx src/peek-dlq.ts",
     "lambda:check": "tsx -e \"import('./src/lambda.ts').then((m) => console.log(typeof m.handler))\"",
     "typecheck": "tsc --noEmit"
   },

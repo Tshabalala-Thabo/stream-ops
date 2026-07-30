@@ -3,6 +3,7 @@ export type StreamOpsAwsConfig = {
   tableName: string
   sourceBucket: string
   processingQueueUrl?: string
+  processingDlqUrl?: string
 }
 
 function requireEnv(name: string, value: string | undefined) {
@@ -19,9 +20,14 @@ export function getStreamOpsAwsConfig(env = process.env): StreamOpsAwsConfig {
     tableName: requireEnv("STREAMOPS_TABLE_NAME", env.STREAMOPS_TABLE_NAME),
     sourceBucket: requireEnv("STREAMOPS_SOURCE_BUCKET", env.STREAMOPS_SOURCE_BUCKET),
     processingQueueUrl: env.STREAMOPS_PROCESSING_QUEUE_URL,
+    processingDlqUrl: env.STREAMOPS_PROCESSING_DLQ_URL,
   }
 }
 
 export function requireProcessingQueueUrl(config: StreamOpsAwsConfig) {
   return requireEnv("STREAMOPS_PROCESSING_QUEUE_URL", config.processingQueueUrl)
+}
+
+export function requireProcessingDlqUrl(config: StreamOpsAwsConfig) {
+  return requireEnv("STREAMOPS_PROCESSING_DLQ_URL", config.processingDlqUrl)
 }

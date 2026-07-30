@@ -5,7 +5,7 @@ This file tracks rebuild progress. Percentages are practical implementation esti
 ## Overall Progress
 
 ```text
-Overall rebuild progress: 56%
+Overall rebuild progress: 58%
 ```
 
 Completed foundation:
@@ -109,7 +109,7 @@ Evidence:
 
 ## Phase 3: Queue And Processing
 
-Progress: 90%
+Progress: 93%
 
 Goal: add asynchronous processing.
 
@@ -128,15 +128,15 @@ Goal: add asynchronous processing.
 - [x] Verify HLS end to end on a fresh upload after the latest HLS code.
 - [x] Add a playback surface or manifest/asset inspection link.
 - [x] Add private S3 HLS playback proxy and in-app HLS player.
-- [ ] Grant playback proxy `s3:GetObject` access to generated HLS assets and verify in-browser playback.
-- [ ] Add explicit DLQ/failure test scenario.
+- [x] Grant playback proxy `s3:GetObject` access to generated HLS assets and verify in-browser playback.
+- [x] Add explicit DLQ/failure test scenario.
 - [ ] Improve worker logs around SQS message IDs, run IDs, and generated asset counts.
 
 Exit criteria:
 
 - [x] Uploaded videos move from `queued` to `processing` to `ready`, or to `failed` with useful error details.
 - [x] Ready videos expose inspectable generated HLS output.
-- [ ] Ready videos play through the private HLS proxy in the app.
+- [x] Ready videos play through the private HLS proxy in the app.
 - [ ] Failed worker messages can be observed in the DLQ.
 
 Evidence:
@@ -223,8 +223,7 @@ Evidence:
 
 Recommended order from here:
 
-1. Grant playback proxy `s3:GetObject` access to generated HLS assets and verify in-browser playback.
-2. Add an intentional worker failure test and confirm DLQ behavior.
-3. Improve worker logs around SQS message IDs, run IDs, and generated asset counts.
-4. Start Phase 5 SAM infrastructure for S3, DynamoDB, SQS, and the Lambda-ready worker.
-5. Start Phase 4 Cognito after deployment basics are stable.
+1. Run the DLQ failure drill and confirm the failed message is visible in the DLQ.
+2. Improve worker logs around SQS message IDs, run IDs, and generated asset counts.
+3. Start Phase 5 SAM infrastructure for S3, DynamoDB, SQS, and the Lambda-ready worker.
+4. Start Phase 4 Cognito after deployment basics are stable.

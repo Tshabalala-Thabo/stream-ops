@@ -100,6 +100,60 @@ The SDK user or deployed web runtime role needs this additional permission:
 }
 ```
 
+## DLQ Failure Drill
+
+The main processing queue redrive policy targets:
+
+```text
+arn:aws:sqs:af-south-1:086769945536:streamops-dev-processing-dlq
+```
+
+The configured `maxReceiveCount` is `3`, so a failing message must be received and fail several times before SQS moves it to the DLQ.
+
+Local environment variable:
+
+```text
+STREAMOPS_PROCESSING_DLQ_URL=https://sqs.af-south-1.amazonaws.com/086769945536/streamops-dev-processing-dlq
+```
+
+Send an intentional poison message:
+
+```bash
+npm run worker:poison
+```
+
+Process the queue until the poison message reaches the redrive threshold:
+
+```bash
+npm run worker:once
+```
+
+The local worker must fail the poison message and leave it undeleted. After SQS visibility timeout/retry cycles and the `maxReceiveCount` threshold, inspect the DLQ:
+
+```bash
+npm run worker:dlq:peek
+```
+
+Expected result:
+
+```text
+DLQ contains 1 visible message(s).
+```
+
+The SDK user needs read access to inspect the DLQ:
+
+```json
+{
+  "Sid": "StreamOpsSqsDlqInspectPhase3",
+  "Effect": "Allow",
+  "Action": [
+    "sqs:ReceiveMessage",
+    "sqs:GetQueueAttributes"
+  ],
+  "Resource": "arn:aws:sqs:af-south-1:086769945536:streamops-dev-processing-dlq"
+}
+```
+
 ## Required Lambda Environment Variables
 
 ```text
@@ -107,6 +161,7 @@ AWS_REGION=
 STREAMOPS_TABLE_NAME=
 STREAMOPS_SOURCE_BUCKET=
 STREAMOPS_PROCESSING_QUEUE_URL=
+STREAMOPS_PROCESSING_DLQ_URL=
 ```
 
 `AWS_PROFILE` is only for local development. Do not configure `AWS_PROFILE` in Lambda.
