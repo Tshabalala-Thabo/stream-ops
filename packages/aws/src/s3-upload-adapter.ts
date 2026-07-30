@@ -57,6 +57,11 @@ export type PresignGetObjectInput = {
   expiresInSeconds?: number
 }
 
+export type GetObjectBytesResult = {
+  body: Uint8Array
+  contentType: string
+}
+
 export class S3MultipartUploadAdapter {
   private readonly client: S3Client
 
@@ -172,6 +177,26 @@ export class S3MultipartUploadAdapter {
       }),
       { expiresIn: input.expiresInSeconds ?? 10 * 60 }
     )
+  }
+
+  async getObjectBytes(key: string): Promise<GetObjectBytesResult> {
+    const response = await this.client.send(
+      new GetObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+      })
+    )
+
+    const body = await response.Body?.transformToByteArray()
+
+    if (!body) {
+      throw new Error("S3 returned an empty object body.")
+    }
+
+    return {
+      body,
+      contentType: response.ContentType ?? "application/octet-stream",
+    }
   }
 }
 

@@ -75,6 +75,31 @@ generated/{ownerId}/{videoId}/hls/{rendition}/segment-000.ts
 
 It persists the video metadata and rendition record in DynamoDB.
 
+## Playback Proxy
+
+The web app serves private HLS playback through:
+
+```text
+/api/playback/{videoId}/hls/master.m3u8
+/api/playback/{videoId}/hls/{rendition}/index.m3u8
+/api/playback/{videoId}/hls/{rendition}/segment-000.ts
+```
+
+The proxy reads generated HLS files from S3, rewrites playlist references back through the app, and lets the video detail page play the stream without making the S3 bucket public.
+
+The SDK user or deployed web runtime role needs this additional permission:
+
+```json
+{
+  "Sid": "StreamOpsS3PlaybackReadPhase3",
+  "Effect": "Allow",
+  "Action": [
+    "s3:GetObject"
+  ],
+  "Resource": "arn:aws:s3:::streamops-dev-storage/generated/*"
+}
+```
+
 ## Required Lambda Environment Variables
 
 ```text

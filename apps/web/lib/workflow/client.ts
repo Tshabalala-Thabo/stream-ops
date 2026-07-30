@@ -13,6 +13,7 @@ export type VideoDetailPayload = {
   assetAccess: {
     thumbnailUrl: string | null
     playbackManifestUrl: string | null
+    playbackProxyUrl: string
     renditions: Array<{
       label: string
       playlistUrl: string

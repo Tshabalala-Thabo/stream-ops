@@ -4,6 +4,7 @@ import { Activity, CheckCircle2, Clock3, ExternalLink, FileVideo, ImageIcon, Lis
 import * as React from "react"
 
 import { CreatorPageHeader } from "@/components/streamops/creator-page-header"
+import { HlsPlayer } from "@/components/streamops/hls-player"
 import { PipelineTimeline } from "@/components/streamops/pipeline-timeline"
 import { StatusChip } from "@/components/streamops/status-chip"
 import { formatBytes, formatDuration, formatResolution, formatUpdatedAt } from "@/components/streamops/video-format"
@@ -93,7 +94,7 @@ export function VideoDetailClient({ videoId }: { videoId: string }) {
           className="mb-6"
           eyebrow="Video workflow"
           title={video?.title ?? "Loading video"}
-          description="Inspect the local state record, upload session, processing run, and generated asset placeholders."
+          description="Inspect the workflow record, processing run, generated assets, and playback output."
           backHref="/dashboard"
           actions={
             video && (
@@ -129,6 +130,20 @@ export function VideoDetailClient({ videoId }: { videoId: string }) {
           <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_380px]">
             <div className="space-y-6">
               <PipelineTimeline status={video.status} />
+
+              <section className="rounded-lg border bg-surface p-5">
+                <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="font-heading text-sm font-semibold">Playback</p>
+                    <p className="mt-1 text-xs text-muted-foreground">{video.status === "ready" ? "Generated HLS stream" : "Waiting for ready status"}</p>
+                  </div>
+                  <AssetLink href={assetAccess?.playbackManifestUrl} label="Manifest" />
+                </div>
+                <HlsPlayer
+                  poster={assetAccess?.thumbnailUrl}
+                  src={video.status === "ready" ? assetAccess?.playbackProxyUrl ?? null : null}
+                />
+              </section>
 
               <section className="rounded-lg border bg-surface p-5">
                 <div className="flex items-center justify-between gap-4">

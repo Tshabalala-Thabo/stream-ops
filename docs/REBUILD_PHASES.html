@@ -509,6 +509,8 @@
             <li class="check done"><span class="box">✓</span><span>Track processing runs and rendition records.</span></li>
             <li class="check done"><span class="box">✓</span><span>Verify HLS end to end on a fresh upload after latest HLS code.</span></li>
             <li class="check done"><span class="box">✓</span><span>Add playback surface or manifest/asset inspection link.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Add private S3 HLS playback proxy and in-app HLS player.</span></li>
+            <li class="check"><span class="box"></span><span>Grant playback proxy <code>s3:GetObject</code> access to generated HLS assets and verify in-browser playback.</span></li>
             <li class="check"><span class="box"></span><span>Add explicit DLQ/failure test scenario.</span></li>
             <li class="check"><span class="box"></span><span>Improve worker logs around SQS message IDs, run IDs, and asset counts.</span></li>
           </ul>
@@ -616,6 +618,7 @@
     <section class="next-panel">
       <h2>Current Next Steps</h2>
       <ol class="steps">
+        <li>Grant playback proxy <code>s3:GetObject</code> access to generated HLS assets and verify in-browser playback.</li>
         <li>Add an intentional worker failure test and confirm DLQ behavior.</li>
         <li>Improve worker logs around SQS message IDs, run IDs, and asset counts.</li>
         <li>Start Phase 5 SAM infrastructure for S3, DynamoDB, SQS, and the Lambda-ready worker.</li>

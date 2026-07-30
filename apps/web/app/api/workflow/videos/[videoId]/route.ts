@@ -62,6 +62,7 @@ async function createAssetAccess(
   return {
     thumbnailUrl,
     playbackManifestUrl,
+    playbackProxyUrl: `/api/playback/${video.id}/hls/master.m3u8`,
     renditions: renditionUrls,
   }
 }
