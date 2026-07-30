@@ -10,6 +10,14 @@ export type VideoDetailPayload = {
   uploadSessions: UploadSession[]
   processingRuns: ProcessingRun[]
   renditions: VideoRendition[]
+  assetAccess: {
+    thumbnailUrl: string | null
+    playbackManifestUrl: string | null
+    renditions: Array<{
+      label: string
+      playlistUrl: string
+    }>
+  } | null
 }
 
 export type PresignedUploadPart = {

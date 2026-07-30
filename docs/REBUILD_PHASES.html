@@ -1,0 +1,631 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>StreamOps Rebuild Phases</title>
+  <style>
+    :root {
+      color-scheme: light;
+      --ink: #182019;
+      --muted: #637064;
+      --paper: #f7f4ec;
+      --panel: #fffdf7;
+      --line: #d8d0bd;
+      --done: #1f8a5b;
+      --next: #c7822a;
+      --todo: #81877a;
+      --dark: #223128;
+      --accent: #0d6f88;
+      --shadow: 0 18px 60px rgba(34, 49, 40, 0.12);
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      background:
+        linear-gradient(90deg, rgba(24, 32, 25, 0.035) 1px, transparent 1px) 0 0 / 36px 36px,
+        linear-gradient(0deg, rgba(24, 32, 25, 0.035) 1px, transparent 1px) 0 0 / 36px 36px,
+        var(--paper);
+      color: var(--ink);
+      font-family: ui-serif, Georgia, Cambria, "Times New Roman", serif;
+      line-height: 1.55;
+    }
+
+    .shell {
+      width: min(1180px, calc(100% - 32px));
+      margin: 0 auto;
+      padding: 40px 0 56px;
+    }
+
+    header {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 280px;
+      gap: 28px;
+      align-items: end;
+      border-bottom: 2px solid var(--dark);
+      padding-bottom: 28px;
+    }
+
+    .eyebrow {
+      margin: 0 0 10px;
+      color: var(--accent);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      font-weight: 700;
+      letter-spacing: 0;
+      text-transform: uppercase;
+    }
+
+    h1 {
+      max-width: 820px;
+      margin: 0;
+      font-size: clamp(44px, 8vw, 92px);
+      line-height: 0.92;
+      letter-spacing: 0;
+    }
+
+    .summary {
+      margin: 18px 0 0;
+      max-width: 720px;
+      color: var(--muted);
+      font-size: 18px;
+    }
+
+    .scorecard {
+      background: var(--dark);
+      color: #f8f4e8;
+      padding: 20px;
+      box-shadow: var(--shadow);
+    }
+
+    .scorecard strong {
+      display: block;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 58px;
+      line-height: 1;
+      letter-spacing: 0;
+    }
+
+    .scorecard span {
+      display: block;
+      margin-top: 10px;
+      color: #cfd8cc;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+
+    .overview {
+      display: grid;
+      grid-template-columns: repeat(7, minmax(0, 1fr));
+      gap: 10px;
+      margin: 28px 0;
+    }
+
+    .phase-pill {
+      border: 1px solid var(--line);
+      background: rgba(255, 253, 247, 0.82);
+      padding: 12px;
+      min-height: 104px;
+    }
+
+    .phase-pill b {
+      display: block;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+    }
+
+    .phase-pill strong {
+      display: block;
+      margin: 10px 0 8px;
+      font-size: 24px;
+      line-height: 1;
+    }
+
+    .meter {
+      height: 8px;
+      background: #e8e0d0;
+      overflow: hidden;
+    }
+
+    .meter > span {
+      display: block;
+      height: 100%;
+      background: var(--done);
+    }
+
+    .section-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 18px;
+      margin: 28px 0;
+    }
+
+    .note,
+    .phase {
+      border: 1px solid var(--line);
+      background: var(--panel);
+      box-shadow: 0 10px 30px rgba(34, 49, 40, 0.06);
+    }
+
+    .note {
+      padding: 20px;
+    }
+
+    .note h2,
+    .phase h2 {
+      margin: 0;
+      font-size: 24px;
+      line-height: 1.05;
+    }
+
+    .note ul,
+    .checklist,
+    .evidence,
+    .steps {
+      padding: 0;
+      margin: 16px 0 0;
+      list-style: none;
+    }
+
+    li {
+      margin: 8px 0;
+    }
+
+    .note li,
+    .steps li {
+      padding-left: 18px;
+      position: relative;
+    }
+
+    .note li::before,
+    .steps li::before {
+      content: "";
+      position: absolute;
+      left: 0;
+      top: 0.72em;
+      width: 7px;
+      height: 7px;
+      background: var(--accent);
+    }
+
+    .phase {
+      margin-top: 18px;
+      overflow: hidden;
+    }
+
+    .phase-head {
+      display: grid;
+      grid-template-columns: minmax(0, 1fr) 128px;
+      gap: 18px;
+      align-items: center;
+      padding: 20px;
+      border-bottom: 1px solid var(--line);
+      background: #fbf8ef;
+    }
+
+    .phase-head p {
+      margin: 8px 0 0;
+      color: var(--muted);
+    }
+
+    .phase-progress {
+      text-align: right;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 28px;
+      font-weight: 700;
+    }
+
+    .phase-body {
+      display: grid;
+      grid-template-columns: minmax(0, 1.1fr) minmax(260px, 0.9fr);
+      gap: 22px;
+      padding: 20px;
+    }
+
+    h3 {
+      margin: 0 0 12px;
+      color: var(--dark);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      text-transform: uppercase;
+    }
+
+    .check {
+      display: grid;
+      grid-template-columns: 22px minmax(0, 1fr);
+      gap: 10px;
+      align-items: start;
+      color: var(--muted);
+    }
+
+    .box {
+      display: inline-grid;
+      place-items: center;
+      width: 18px;
+      height: 18px;
+      margin-top: 3px;
+      border: 1px solid currentColor;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      line-height: 1;
+    }
+
+    .check.done {
+      color: var(--ink);
+    }
+
+    .check.done .box {
+      border-color: var(--done);
+      background: var(--done);
+      color: white;
+    }
+
+    code {
+      color: #244338;
+      background: #ece5d6;
+      padding: 2px 5px;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 0.92em;
+    }
+
+    .evidence li {
+      border-top: 1px solid #e4dccb;
+      padding-top: 8px;
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      overflow-wrap: anywhere;
+    }
+
+    .next-panel {
+      margin-top: 28px;
+      padding: 24px;
+      background: var(--dark);
+      color: #faf6ec;
+      box-shadow: var(--shadow);
+    }
+
+    .next-panel h2 {
+      margin: 0;
+      font-size: 30px;
+    }
+
+    .steps {
+      counter-reset: step;
+    }
+
+    .steps li {
+      counter-increment: step;
+      padding-left: 40px;
+      color: #e2eadf;
+    }
+
+    .steps li::before {
+      content: counter(step);
+      top: 0;
+      width: 26px;
+      height: 26px;
+      display: grid;
+      place-items: center;
+      color: var(--dark);
+      background: #f5c05f;
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+      font-weight: 700;
+    }
+
+    footer {
+      margin-top: 26px;
+      color: var(--muted);
+      font-family: ui-monospace, SFMono-Regular, Menlo, Consolas, monospace;
+      font-size: 12px;
+    }
+
+    @media (max-width: 900px) {
+      header,
+      .section-grid,
+      .phase-body {
+        grid-template-columns: 1fr;
+      }
+
+      .overview {
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+      }
+
+      .phase-head {
+        grid-template-columns: 1fr;
+      }
+
+      .phase-progress {
+        text-align: left;
+      }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <header>
+      <div>
+        <p class="eyebrow">StreamOps AWS rebuild tracker</p>
+        <h1>Rebuild Phases</h1>
+        <p class="summary">A practical progress map for the video workflow rebuild, from local domain skeleton to AWS storage, queues, processing, deployment, security, and operations.</p>
+      </div>
+      <aside class="scorecard">
+        <strong>56%</strong>
+        <span>overall rebuild progress</span>
+      </aside>
+    </header>
+
+    <section class="overview" aria-label="Phase progress overview">
+      <div class="phase-pill"><b>Phase 0</b><strong>100%</strong><div class="meter"><span style="width:100%"></span></div></div>
+      <div class="phase-pill"><b>Phase 1</b><strong>100%</strong><div class="meter"><span style="width:100%"></span></div></div>
+      <div class="phase-pill"><b>Phase 2</b><strong>100%</strong><div class="meter"><span style="width:100%"></span></div></div>
+      <div class="phase-pill"><b>Phase 3</b><strong>90%</strong><div class="meter"><span style="width:90%"></span></div></div>
+      <div class="phase-pill"><b>Phase 4</b><strong>10%</strong><div class="meter"><span style="width:10%; background:var(--next)"></span></div></div>
+      <div class="phase-pill"><b>Phase 5</b><strong>10%</strong><div class="meter"><span style="width:10%; background:var(--next)"></span></div></div>
+      <div class="phase-pill"><b>Phase 6</b><strong>5%</strong><div class="meter"><span style="width:5%; background:var(--todo)"></span></div></div>
+    </section>
+
+    <section class="section-grid">
+      <article class="note">
+        <h2>Completed Foundation</h2>
+        <ul>
+          <li>Local domain model and mock workflow.</li>
+          <li>Real S3 multipart uploads from the browser.</li>
+          <li>Real DynamoDB workflow persistence.</li>
+          <li>Real SQS queue handoff.</li>
+          <li>Local Node worker and Lambda-ready SQS handler.</li>
+          <li>Real FFmpeg probe, thumbnail generation, and adaptive HLS generation.</li>
+          <li>Video detail inspection links for generated playback assets.</li>
+        </ul>
+      </article>
+      <article class="note">
+        <h2>Main Work Remaining</h2>
+        <ul>
+          <li>Exercise worker failures and DLQ behavior.</li>
+          <li>Add deployable AWS SAM stack.</li>
+          <li>Add Cognito authentication and production-grade security.</li>
+          <li>Add observability: logs, metrics, traces, and health checks.</li>
+        </ul>
+      </article>
+    </section>
+
+    <section class="phase">
+      <div class="phase-head">
+        <div><h2>Phase 0: Project Cut</h2><p>Goal: define the minimal rebuild.</p></div>
+        <div class="phase-progress">100%</div>
+      </div>
+      <div class="phase-body">
+        <div>
+          <h3>Checklist</h3>
+          <ul class="checklist">
+            <li class="check done"><span class="box">✓</span><span>Create repo structure.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Document architecture.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Define workflow statuses.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Define acceptance scenarios.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Choose AWS SAM.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Exit criteria: docs explain what will be built and what is intentionally excluded.</span></li>
+          </ul>
+        </div>
+        <div>
+          <h3>Evidence</h3>
+          <ul class="evidence">
+            <li><code>docs/ARCHITECTURE.md</code></li>
+            <li><code>docs/DOMAIN_MODEL.md</code></li>
+            <li><code>docs/ACCEPTANCE_SCENARIOS.md</code></li>
+            <li><code>docs/DEPLOYMENT_PLAN.md</code></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="phase">
+      <div class="phase-head">
+        <div><h2>Phase 1: Local Domain Skeleton</h2><p>Goal: prove workflow behavior without AWS dependencies.</p></div>
+        <div class="phase-progress">100%</div>
+      </div>
+      <div class="phase-body">
+        <div>
+          <h3>Checklist</h3>
+          <ul class="checklist">
+            <li class="check done"><span class="box">✓</span><span>Create <code>packages/core</code>.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Define <code>Video</code>, <code>UploadSession</code>, <code>ProcessingRun</code>, and <code>VideoRendition</code>.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Add status transition helpers.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Add validation.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Add in-memory adapters.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Create minimal Next.js upload/dashboard flow.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Exit criteria: mocked upload session and local status transitions work.</span></li>
+          </ul>
+        </div>
+        <div>
+          <h3>Evidence</h3>
+          <ul class="evidence">
+            <li><code>packages/core/src/types.ts</code></li>
+            <li><code>packages/core/src/transitions.ts</code></li>
+            <li><code>packages/core/src/memory-store.ts</code></li>
+            <li><code>packages/core/src/workflow.test.ts</code></li>
+            <li><code>apps/web/components/streamops/upload-flow.tsx</code></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="phase">
+      <div class="phase-head">
+        <div><h2>Phase 2: S3 And DynamoDB</h2><p>Goal: replace mocks with real AWS storage and persistence.</p></div>
+        <div class="phase-progress">100%</div>
+      </div>
+      <div class="phase-body">
+        <div>
+          <h3>Checklist</h3>
+          <ul class="checklist">
+            <li class="check done"><span class="box">✓</span><span>Add S3 multipart upload creation.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Generate presigned part URLs.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Complete multipart uploads.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Persist state in DynamoDB.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Use conditional writes for idempotency.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Add TTL for expired upload sessions.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Configure S3 CORS to expose <code>ETag</code>.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Wire dashboard and detail reads to DynamoDB.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Exit criteria: browser uploads directly to S3 and completed upload is recorded.</span></li>
+          </ul>
+        </div>
+        <div>
+          <h3>Evidence</h3>
+          <ul class="evidence">
+            <li><code>packages/aws/src/s3-upload-adapter.ts</code></li>
+            <li><code>packages/aws/src/dynamodb-workflow-store.ts</code></li>
+            <li><code>apps/web/app/api/workflow/uploads/route.ts</code></li>
+            <li><code>apps/web/app/api/workflow/videos/route.ts</code></li>
+            <li><code>infra/s3/source-bucket-cors.dev.json</code></li>
+            <li><code>docs/PHASE_2_S3_DYNAMODB_GUIDE.md</code></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="phase">
+      <div class="phase-head">
+        <div><h2>Phase 3: Queue And Processing</h2><p>Goal: add asynchronous processing.</p></div>
+        <div class="phase-progress">90%</div>
+      </div>
+      <div class="phase-body">
+        <div>
+          <h3>Checklist</h3>
+          <ul class="checklist">
+            <li class="check done"><span class="box">✓</span><span>Send processing messages to SQS.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Add DLQ.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Build a Node worker.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Add Lambda-ready SQS handler entry point.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Add lightweight FFmpeg integration.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Run <code>ffprobe</code> and persist real metadata.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Generate/upload thumbnail and adaptive HLS assets.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Select HLS renditions from 1080p, 720p, and 480p based on the source's effective quality.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Track processing runs and rendition records.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Verify HLS end to end on a fresh upload after latest HLS code.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Add playback surface or manifest/asset inspection link.</span></li>
+            <li class="check"><span class="box"></span><span>Add explicit DLQ/failure test scenario.</span></li>
+            <li class="check"><span class="box"></span><span>Improve worker logs around SQS message IDs, run IDs, and asset counts.</span></li>
+          </ul>
+        </div>
+        <div>
+          <h3>Evidence</h3>
+          <ul class="evidence">
+            <li><code>packages/aws/src/sqs-processing-queue.ts</code></li>
+            <li><code>apps/web/app/api/workflow/videos/[videoId]/queue/route.ts</code></li>
+            <li><code>apps/worker/src/index.ts</code></li>
+            <li><code>apps/worker/src/lambda.ts</code></li>
+            <li><code>apps/worker/src/processor.ts</code></li>
+            <li><code>apps/worker/src/media.ts</code></li>
+            <li><code>docs/PHASE_3_WORKER_LAMBDA_NOTES.md</code></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="phase">
+      <div class="phase-head">
+        <div><h2>Phase 4: Auth And Security</h2><p>Goal: practice AWS-native authentication and authorization.</p></div>
+        <div class="phase-progress">10%</div>
+      </div>
+      <div class="phase-body">
+        <div>
+          <h3>Checklist</h3>
+          <ul class="checklist">
+            <li class="check"><span class="box"></span><span>Add Cognito.</span></li>
+            <li class="check"><span class="box"></span><span>Validate JWTs server-side.</span></li>
+            <li class="check"><span class="box"></span><span>Enforce owner checks from authenticated user identity.</span></li>
+            <li class="check"><span class="box"></span><span>Replace hardcoded <code>LOCAL_OWNER_ID</code>.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Add initial least-privilege IAM policy for dev S3, DynamoDB, and SQS access.</span></li>
+            <li class="check"><span class="box"></span><span>Add production least-privilege IAM policies.</span></li>
+            <li class="check"><span class="box"></span><span>Move configuration to AWS-managed config/secrets.</span></li>
+            <li class="check"><span class="box"></span><span>Add log sanitization.</span></li>
+          </ul>
+        </div>
+        <div>
+          <h3>Evidence</h3>
+          <ul class="evidence">
+            <li>Owner checks exist at the domain/store layer.</li>
+            <li>Real Cognito identity is not implemented yet.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="phase">
+      <div class="phase-head">
+        <div><h2>Phase 5: Deployment</h2><p>Goal: deploy repeatably.</p></div>
+        <div class="phase-progress">10%</div>
+      </div>
+      <div class="phase-body">
+        <div>
+          <h3>Checklist</h3>
+          <ul class="checklist">
+            <li class="check"><span class="box"></span><span>Add AWS SAM stack.</span></li>
+            <li class="check"><span class="box"></span><span>Provision S3, DynamoDB, SQS, Lambda, Cognito, and CloudWatch resources.</span></li>
+            <li class="check"><span class="box"></span><span>Add environment configuration.</span></li>
+            <li class="check"><span class="box"></span><span>Add deployment test events.</span></li>
+            <li class="check"><span class="box"></span><span>Add rollback practice.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Prepare Lambda-compatible worker handler.</span></li>
+          </ul>
+        </div>
+        <div>
+          <h3>Evidence</h3>
+          <ul class="evidence">
+            <li><code>apps/worker/src/lambda.ts</code></li>
+            <li><code>infra/sam/.gitkeep</code></li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="phase">
+      <div class="phase-head">
+        <div><h2>Phase 6: Observability And Optimization</h2><p>Goal: make operations visible.</p></div>
+        <div class="phase-progress">5%</div>
+      </div>
+      <div class="phase-body">
+        <div>
+          <h3>Checklist</h3>
+          <ul class="checklist">
+            <li class="check"><span class="box"></span><span>Add structured logs.</span></li>
+            <li class="check"><span class="box"></span><span>Add EMF metrics.</span></li>
+            <li class="check"><span class="box"></span><span>Add trace/correlation IDs.</span></li>
+            <li class="check"><span class="box"></span><span>Add health checks.</span></li>
+            <li class="check"><span class="box"></span><span>Add Logs Insights examples.</span></li>
+            <li class="check"><span class="box"></span><span>Tune upload parallelism and worker concurrency.</span></li>
+            <li class="check"><span class="box"></span><span>Add cache headers for public assets.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Add basic worker logs.</span></li>
+          </ul>
+        </div>
+        <div>
+          <h3>Evidence</h3>
+          <ul class="evidence">
+            <li><code>docs/OBSERVABILITY_PLAN.md</code></li>
+            <li>Basic console logging exists in the worker only.</li>
+          </ul>
+        </div>
+      </div>
+    </section>
+
+    <section class="next-panel">
+      <h2>Current Next Steps</h2>
+      <ol class="steps">
+        <li>Add an intentional worker failure test and confirm DLQ behavior.</li>
+        <li>Improve worker logs around SQS message IDs, run IDs, and asset counts.</li>
+        <li>Start Phase 5 SAM infrastructure for S3, DynamoDB, SQS, and the Lambda-ready worker.</li>
+        <li>Start Phase 4 Cognito after deployment basics are stable.</li>
+      </ol>
+    </section>
+
+    <footer>
+      Source tracker: <code>docs/REBUILD_PHASES.md</code>. Static HTML snapshot for local review.
+    </footer>
+  </main>
+</body>
+</html>

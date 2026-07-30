@@ -50,15 +50,27 @@ Current behavior:
 queued -> processing -> ready
 ```
 
-It downloads the source video from S3, runs `ffprobe`, generates a JPEG thumbnail, and generates a single 720p HLS rendition with `ffmpeg`.
+It downloads the source video from S3, runs `ffprobe`, generates a JPEG thumbnail, and generates adaptive HLS renditions with `ffmpeg`.
+
+The current HLS ladder is:
+
+```text
+1080p when the source's shorter edge is at least 1080 pixels
+720p when the source's shorter edge is at least 720 pixels
+480p when the source's shorter edge is at least 480 pixels
+```
+
+For example, a 1280x720 landscape source or a 720x1280 portrait source should produce 720p and 480p renditions. A 1920x1080 landscape source or a 1080x1920 portrait source should produce 1080p, 720p, and 480p renditions.
 
 It writes generated assets to:
 
 ```text
 generated/{ownerId}/{videoId}/thumbnail.jpg
 generated/{ownerId}/{videoId}/hls/master.m3u8
+generated/{ownerId}/{videoId}/hls/1080p/index.m3u8
 generated/{ownerId}/{videoId}/hls/720p/index.m3u8
-generated/{ownerId}/{videoId}/hls/720p/segment-000.ts
+generated/{ownerId}/{videoId}/hls/480p/index.m3u8
+generated/{ownerId}/{videoId}/hls/{rendition}/segment-000.ts
 ```
 
 It persists the video metadata and rendition record in DynamoDB.

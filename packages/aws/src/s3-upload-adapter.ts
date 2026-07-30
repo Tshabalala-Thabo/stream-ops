@@ -52,6 +52,11 @@ export type PutObjectInput = {
   cacheControl?: string
 }
 
+export type PresignGetObjectInput = {
+  key: string
+  expiresInSeconds?: number
+}
+
 export class S3MultipartUploadAdapter {
   private readonly client: S3Client
 
@@ -155,6 +160,17 @@ export class S3MultipartUploadAdapter {
         CacheControl: input.cacheControl,
         ServerSideEncryption: "AES256",
       })
+    )
+  }
+
+  async presignGetObjectUrl(input: PresignGetObjectInput) {
+    return getSignedUrl(
+      this.client,
+      new GetObjectCommand({
+        Bucket: this.bucket,
+        Key: input.key,
+      }),
+      { expiresIn: input.expiresInSeconds ?? 10 * 60 }
     )
   }
 }

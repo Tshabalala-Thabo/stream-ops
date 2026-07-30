@@ -9,6 +9,19 @@ import type { VideoRendition } from "@streamops/core"
 
 const execFileAsync = promisify(execFile)
 
+type RenditionPreset = {
+  label: "1080p" | "720p" | "480p"
+  targetShortEdge: number
+  bitrate: number
+  audioBitrate: string
+}
+
+const RENDITION_PRESETS: RenditionPreset[] = [
+  { label: "1080p", targetShortEdge: 1080, bitrate: 5_000_000, audioBitrate: "160k" },
+  { label: "720p", targetShortEdge: 720, bitrate: 2_800_000, audioBitrate: "128k" },
+  { label: "480p", targetShortEdge: 480, bitrate: 1_400_000, audioBitrate: "96k" },
+]
+
 export type VideoProbeMetadata = {
   durationSeconds: number | null
   width: number | null
@@ -49,14 +62,14 @@ export async function processVideoAssets(input: ProcessVideoAssetsInput): Promis
     const thumbnailKey = `generated/${input.ownerId}/${input.videoId}/thumbnail.jpg`
     const hlsPrefix = `generated/${input.ownerId}/${input.videoId}/hls`
     const playbackManifestKey = `${hlsPrefix}/master.m3u8`
-    const renditionPlaylistKey = `${hlsPrefix}/720p/index.m3u8`
-    const segmentPrefix = `${hlsPrefix}/720p/`
 
     await input.s3.downloadObjectToFile(input.sourceKey, sourcePath)
 
     const metadata = await probeVideo(sourcePath)
+    const renditionPlans = getRenditionPlans(metadata)
+
     await createThumbnail(sourcePath, thumbnailPath)
-    await createHlsRendition(sourcePath, hlsPath, metadata)
+    await createHlsRenditions(sourcePath, hlsPath, renditionPlans)
     await input.s3.putObjectFromFile({
       key: thumbnailKey,
       filePath: thumbnailPath,
@@ -71,19 +84,17 @@ export async function processVideoAssets(input: ProcessVideoAssetsInput): Promis
       ...metadata,
       thumbnailKey,
       playbackManifestKey,
-      renditions: [
-        {
-          videoId: input.videoId,
-          label: "720p",
-          width: Math.min(metadata.width ?? 1280, 1280),
-          height: calculateScaledHeight(metadata.width, metadata.height),
-          bitrate: 2_800_000,
-          playlistKey: renditionPlaylistKey,
-          segmentPrefix,
-          createdAt: timestamp,
-          updatedAt: timestamp,
-        },
-      ],
+      renditions: renditionPlans.map((plan) => ({
+        videoId: input.videoId,
+        label: plan.label,
+        width: plan.width,
+        height: plan.height,
+        bitrate: plan.bitrate,
+        playlistKey: `${hlsPrefix}/${plan.label}/index.m3u8`,
+        segmentPrefix: `${hlsPrefix}/${plan.label}/`,
+        createdAt: timestamp,
+        updatedAt: timestamp,
+      })),
     }
   } finally {
     await rm(workspace, { force: true, recursive: true })
@@ -129,51 +140,67 @@ async function createThumbnail(sourcePath: string, thumbnailPath: string) {
   ])
 }
 
-async function createHlsRendition(
+type RenditionPlan = RenditionPreset & {
+  width: number
+  height: number
+  scaleFilter: string
+}
+
+async function createHlsRenditions(
   sourcePath: string,
   hlsPath: string,
-  metadata: VideoProbeMetadata
+  renditionPlans: RenditionPlan[]
 ) {
-  const renditionPath = join(hlsPath, "720p")
-  await mkdir(renditionPath, { recursive: true })
+  await Promise.all(
+    renditionPlans.map(async (plan) => {
+      const renditionPath = join(hlsPath, plan.label)
+      await mkdir(renditionPath, { recursive: true })
 
-  await execFileAsync("ffmpeg", [
-    "-y",
-    "-hide_banner",
-    "-loglevel",
-    "error",
-    "-i",
-    sourcePath,
-    "-vf",
-    "scale='min(1280,iw)':-2",
-    "-c:v",
-    "libx264",
-    "-preset",
-    "veryfast",
-    "-crf",
-    "23",
-    "-c:a",
-    "aac",
-    "-b:a",
-    "128k",
-    "-f",
-    "hls",
-    "-hls_time",
-    "6",
-    "-hls_playlist_type",
-    "vod",
-    "-hls_segment_filename",
-    join(renditionPath, "segment-%03d.ts"),
-    join(renditionPath, "index.m3u8"),
-  ])
+      await execFileAsync("ffmpeg", [
+        "-y",
+        "-hide_banner",
+        "-loglevel",
+        "error",
+        "-i",
+        sourcePath,
+        "-vf",
+        plan.scaleFilter,
+        "-c:v",
+        "libx264",
+        "-preset",
+        "veryfast",
+        "-crf",
+        "23",
+        "-maxrate",
+        String(plan.bitrate),
+        "-bufsize",
+        String(plan.bitrate * 2),
+        "-c:a",
+        "aac",
+        "-b:a",
+        plan.audioBitrate,
+        "-f",
+        "hls",
+        "-hls_time",
+        "6",
+        "-hls_playlist_type",
+        "vod",
+        "-hls_segment_filename",
+        join(renditionPath, "segment-%03d.ts"),
+        join(renditionPath, "index.m3u8"),
+      ])
+    })
+  )
 
   await writeFile(
     join(hlsPath, "master.m3u8"),
     [
       "#EXTM3U",
       "#EXT-X-VERSION:3",
-      `#EXT-X-STREAM-INF:BANDWIDTH=2800000,RESOLUTION=${Math.min(metadata.width ?? 1280, 1280)}x${calculateScaledHeight(metadata.width, metadata.height)}`,
-      "720p/index.m3u8",
+      ...renditionPlans.flatMap((plan) => [
+        `#EXT-X-STREAM-INF:BANDWIDTH=${plan.bitrate},RESOLUTION=${plan.width}x${plan.height}`,
+        `${plan.label}/index.m3u8`,
+      ]),
       "",
     ].join("\n"),
     "utf8"
@@ -203,17 +230,61 @@ async function uploadDirectory(s3: S3MultipartUploadAdapter, directoryPath: stri
   )
 }
 
-function calculateScaledHeight(width: number | null, height: number | null) {
+function getRenditionPlans(metadata: VideoProbeMetadata): RenditionPlan[] {
+  const sourceQuality = getSourceQuality(metadata)
+
+  return RENDITION_PRESETS
+    .filter((preset) => preset.targetShortEdge <= sourceQuality + 8)
+    .map((preset) => {
+      const dimensions = calculateScaledDimensions(metadata.width, metadata.height, preset.targetShortEdge)
+
+      return {
+        ...preset,
+        ...dimensions,
+      }
+    })
+}
+
+function getSourceQuality(metadata: VideoProbeMetadata) {
+  if (metadata.width && metadata.height) {
+    return Math.min(metadata.width, metadata.height)
+  }
+
+  return metadata.height ?? 720
+}
+
+function calculateScaledDimensions(width: number | null, height: number | null, targetShortEdge: number) {
   if (!width || !height) {
-    return 720
+    return {
+      width: targetShortEdge === 1080 ? 1920 : targetShortEdge === 720 ? 1280 : 854,
+      height: targetShortEdge,
+      scaleFilter: `scale=-2:${targetShortEdge}`,
+    }
   }
 
-  if (width <= 1280) {
-    return height
+  if (width <= height) {
+    const targetWidth = makeEven(Math.min(width, targetShortEdge))
+    const scaledHeight = makeEven(Math.round((height * targetWidth) / width))
+
+    return {
+      width: targetWidth,
+      height: scaledHeight,
+      scaleFilter: `scale=${targetWidth}:-2`,
+    }
   }
 
-  const scaledHeight = Math.round((height * 1280) / width)
-  return scaledHeight % 2 === 0 ? scaledHeight : scaledHeight + 1
+  const targetHeight = makeEven(Math.min(height, targetShortEdge))
+  const scaledWidth = makeEven(Math.round((width * targetHeight) / height))
+
+  return {
+    width: scaledWidth,
+    height: targetHeight,
+    scaleFilter: `scale=-2:${targetHeight}`,
+  }
+}
+
+function makeEven(value: number) {
+  return value % 2 === 0 ? value : value + 1
 }
 
 function getContentType(fileName: string) {
