@@ -21,7 +21,7 @@ export async function GET(
         video,
         uploadSessions,
         processingRuns: await dynamo.listProcessingRuns(videoId, LOCAL_OWNER_ID),
-        renditions: dynamo.listRenditions(videoId, LOCAL_OWNER_ID),
+        renditions: await dynamo.listRenditions(videoId, LOCAL_OWNER_ID),
       }
     }
 

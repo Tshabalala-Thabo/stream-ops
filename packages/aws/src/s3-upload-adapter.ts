@@ -2,11 +2,17 @@ import {
   AbortMultipartUploadCommand,
   CompleteMultipartUploadCommand,
   CreateMultipartUploadCommand,
+  GetObjectCommand,
+  PutObjectCommand,
   S3Client,
   UploadPartCommand,
   type CompletedPart,
 } from "@aws-sdk/client-s3"
 import { getSignedUrl } from "@aws-sdk/s3-request-presigner"
+import { createWriteStream } from "node:fs"
+import { readFile } from "node:fs/promises"
+import { Readable } from "node:stream"
+import { pipeline } from "node:stream/promises"
 
 import type { UploadedPart } from "@streamops/core"
 
@@ -37,6 +43,13 @@ export type CompleteMultipartUploadInput = {
 export type AbortMultipartUploadInput = {
   key: string
   multipartUploadId: string
+}
+
+export type PutObjectInput = {
+  key: string
+  filePath: string
+  contentType: string
+  cacheControl?: string
 }
 
 export class S3MultipartUploadAdapter {
@@ -113,6 +126,34 @@ export class S3MultipartUploadAdapter {
         Bucket: this.bucket,
         Key: input.key,
         UploadId: input.multipartUploadId,
+      })
+    )
+  }
+
+  async downloadObjectToFile(key: string, filePath: string) {
+    const response = await this.client.send(
+      new GetObjectCommand({
+        Bucket: this.bucket,
+        Key: key,
+      })
+    )
+
+    if (!(response.Body instanceof Readable)) {
+      throw new Error("S3 returned an unsupported object body.")
+    }
+
+    await pipeline(response.Body, createWriteStream(filePath))
+  }
+
+  async putObjectFromFile(input: PutObjectInput) {
+    return this.client.send(
+      new PutObjectCommand({
+        Bucket: this.bucket,
+        Key: input.key,
+        Body: await readFile(input.filePath),
+        ContentType: input.contentType,
+        CacheControl: input.cacheControl,
+        ServerSideEncryption: "AES256",
       })
     )
   }

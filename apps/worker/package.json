@@ -6,6 +6,7 @@
   "scripts": {
     "dev": "tsx src/index.ts",
     "once": "tsx src/index.ts --once",
+    "lambda:check": "tsx -e \"import('./src/lambda.ts').then((m) => console.log(typeof m.handler))\"",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

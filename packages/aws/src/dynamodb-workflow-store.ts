@@ -205,8 +205,21 @@ export class DynamoDBWorkflowStore {
     return (response.Items ?? []).map(toProcessingRun)
   }
 
-  listRenditions(_videoId: EntityId, _ownerId: EntityId): VideoRendition[] {
-    return []
+  async listRenditions(videoId: EntityId, ownerId: EntityId) {
+    await this.getVideo(videoId, ownerId)
+
+    const response = await this.client.send(
+      new QueryCommand({
+        TableName: this.tableName,
+        KeyConditionExpression: "PK = :pk AND begins_with(SK, :sk)",
+        ExpressionAttributeValues: {
+          ":pk": videoPk(videoId),
+          ":sk": "RENDITION#",
+        },
+      })
+    )
+
+    return (response.Items ?? []).map(toVideoRendition)
   }
 
   async queueProcessing(videoId: EntityId, ownerId: EntityId, now = new Date()) {
@@ -260,7 +273,20 @@ export class DynamoDBWorkflowStore {
     return started
   }
 
-  async completeProcessing(videoId: EntityId, ownerId: EntityId, runId?: EntityId, now = new Date()) {
+  async completeProcessing(
+    videoId: EntityId,
+    ownerId: EntityId,
+    runId?: EntityId,
+    now = new Date(),
+    metadata?: {
+      durationSeconds?: number | null
+      width?: number | null
+      height?: number | null
+      thumbnailKey?: string | null
+      playbackManifestKey?: string | null
+      renditions?: VideoRendition[]
+    }
+  ) {
     const video = await this.getVideo(videoId, ownerId)
     const run = runId
       ? await this.getProcessingRun(videoId, ownerId, runId)
@@ -268,11 +294,20 @@ export class DynamoDBWorkflowStore {
     const completed = completeProcessing(video, run, now)
     const videoWithAwsAssetKeys = {
       ...completed.video,
-      thumbnailKey: `generated/${ownerId}/${videoId}/thumbnail.jpg`,
-      playbackManifestKey: `generated/${ownerId}/${videoId}/hls/master.m3u8`,
+      durationSeconds: metadata?.durationSeconds ?? completed.video.durationSeconds,
+      width: metadata?.width ?? completed.video.width,
+      height: metadata?.height ?? completed.video.height,
+      thumbnailKey: metadata?.thumbnailKey ?? `generated/${ownerId}/${videoId}/thumbnail.jpg`,
+      playbackManifestKey: metadata?.playbackManifestKey ?? null,
     }
 
-    await this.writeVideoAndRun(videoWithAwsAssetKeys, completed.run, "processing", "running")
+    await this.writeVideoAndRun(
+      videoWithAwsAssetKeys,
+      completed.run,
+      "processing",
+      "running",
+      metadata?.renditions
+    )
 
     return {
       ...completed,
@@ -442,7 +477,8 @@ export class DynamoDBWorkflowStore {
     video: Video,
     run: ProcessingRun,
     expectedVideoStatus: Video["status"],
-    expectedRunStatus: ProcessingRun["status"]
+    expectedRunStatus: ProcessingRun["status"],
+    renditions: VideoRendition[] = []
   ) {
     await this.client.send(
       new TransactWriteCommand({
@@ -474,6 +510,13 @@ export class DynamoDBWorkflowStore {
               ExpressionAttributeValues: { ":expected": expectedRunStatus },
             },
           },
+          ...renditions.map((rendition) => ({
+            Put: {
+              TableName: this.tableName,
+              Item: toVideoRenditionItem(rendition),
+              ConditionExpression: "attribute_not_exists(PK) AND attribute_not_exists(SK)",
+            },
+          })),
         ],
       })
     )
@@ -615,6 +658,15 @@ function toProcessingRunItem(run: ProcessingRun): EntityItem {
   }
 }
 
+function toVideoRenditionItem(rendition: VideoRendition): EntityItem {
+  return {
+    ...rendition,
+    PK: videoPk(rendition.videoId),
+    SK: `RENDITION#${rendition.label}`,
+    entityType: "VIDEO_RENDITION",
+  }
+}
+
 function toVideo(item: Record<string, unknown>): Video {
   return {
     id: String(item.id),
@@ -664,6 +716,20 @@ function toProcessingRun(item: Record<string, unknown>): ProcessingRun {
     error: item.error === null || item.error === undefined ? null : String(item.error),
     startedAt: item.startedAt === null || item.startedAt === undefined ? null : String(item.startedAt),
     finishedAt: item.finishedAt === null || item.finishedAt === undefined ? null : String(item.finishedAt),
+    createdAt: String(item.createdAt),
+    updatedAt: String(item.updatedAt),
+  }
+}
+
+function toVideoRendition(item: Record<string, unknown>): VideoRendition {
+  return {
+    videoId: String(item.videoId),
+    label: String(item.label),
+    width: Number(item.width),
+    height: Number(item.height),
+    bitrate: Number(item.bitrate),
+    playlistKey: String(item.playlistKey),
+    segmentPrefix: String(item.segmentPrefix),
     createdAt: String(item.createdAt),
     updatedAt: String(item.updatedAt),
   }
