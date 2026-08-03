@@ -44,7 +44,10 @@ async function pollOnce() {
       continue
     }
 
-    await processProcessingJob(job, { dynamo, s3 })
+    await processProcessingJob(job, { dynamo, s3 }, {
+      sqsMessageId: message.id,
+      approximateReceiveCount: message.attributes.ApproximateReceiveCount,
+    })
     await queue.deleteMessage(message.receiptHandle)
     processedCount += 1
   }

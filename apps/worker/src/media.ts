@@ -39,6 +39,7 @@ export type ProcessedVideoAssets = VideoProbeMetadata & {
   thumbnailKey: string
   playbackManifestKey: string
   renditions: VideoRendition[]
+  assetCounts: GeneratedAssetCounts
 }
 
 type FfprobeOutput = {
@@ -50,6 +51,15 @@ type FfprobeOutput = {
     width?: number
     height?: number
   }>
+}
+
+export type GeneratedAssetCounts = {
+  thumbnails: number
+  hlsManifests: number
+  hlsPlaylists: number
+  hlsSegments: number
+  hlsObjects: number
+  totalObjects: number
 }
 
 export async function processVideoAssets(input: ProcessVideoAssetsInput): Promise<ProcessedVideoAssets> {
@@ -76,7 +86,7 @@ export async function processVideoAssets(input: ProcessVideoAssetsInput): Promis
       contentType: "image/jpeg",
       cacheControl: "public, max-age=31536000, immutable",
     })
-    await uploadDirectory(input.s3, hlsPath, hlsPrefix)
+    const hlsObjectCounts = await uploadDirectory(input.s3, hlsPath, hlsPrefix)
 
     const timestamp = new Date().toISOString()
 
@@ -84,6 +94,11 @@ export async function processVideoAssets(input: ProcessVideoAssetsInput): Promis
       ...metadata,
       thumbnailKey,
       playbackManifestKey,
+      assetCounts: {
+        thumbnails: 1,
+        ...hlsObjectCounts,
+        totalObjects: 1 + hlsObjectCounts.hlsObjects,
+      },
       renditions: renditionPlans.map((plan) => ({
         videoId: input.videoId,
         label: plan.label,
@@ -209,25 +224,40 @@ async function createHlsRenditions(
 
 async function uploadDirectory(s3: S3MultipartUploadAdapter, directoryPath: string, keyPrefix: string) {
   const entries = await readdir(directoryPath, { recursive: true, withFileTypes: true })
+  const files = entries
+    .filter((entry) => entry.isFile())
+    .map((entry) => {
+      const relativePath = entry.parentPath
+        .slice(directoryPath.length)
+        .replace(/^\/+/, "")
+      const fileName = relativePath ? `${relativePath}/${entry.name}` : entry.name
+      const filePath = join(directoryPath, fileName)
+
+      return { fileName, filePath }
+    })
 
   await Promise.all(
-    entries
-      .filter((entry) => entry.isFile())
-      .map((entry) => {
-        const relativePath = entry.parentPath
-          .slice(directoryPath.length)
-          .replace(/^\/+/, "")
-        const fileName = relativePath ? `${relativePath}/${entry.name}` : entry.name
-        const filePath = join(directoryPath, fileName)
-
-        return s3.putObjectFromFile({
+    files
+      .map(({ fileName, filePath }) =>
+        s3.putObjectFromFile({
           key: `${keyPrefix}/${fileName}`,
           filePath,
           contentType: getContentType(fileName),
           cacheControl: "public, max-age=31536000, immutable",
         })
-      })
+      )
   )
+
+  const hlsManifests = files.filter(({ fileName }) => fileName === "master.m3u8").length
+  const hlsPlaylists = files.filter(({ fileName }) => fileName.endsWith("/index.m3u8")).length
+  const hlsSegments = files.filter(({ fileName }) => fileName.endsWith(".ts")).length
+
+  return {
+    hlsManifests,
+    hlsPlaylists,
+    hlsSegments,
+    hlsObjects: files.length,
+  }
 }
 
 function getRenditionPlans(metadata: VideoProbeMetadata): RenditionPlan[] {

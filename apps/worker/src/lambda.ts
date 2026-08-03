@@ -3,6 +3,7 @@ import { parseProcessingJob, processProcessingJob } from "./processor"
 type SqsRecord = {
   messageId: string
   body: string
+  attributes?: Record<string, string>
 }
 
 type SqsEvent = {
@@ -24,7 +25,10 @@ export async function handler(event: SqsEvent): Promise<SqsBatchResponse> {
     }
 
     try {
-      await processProcessingJob(job)
+      await processProcessingJob(job, undefined, {
+        sqsMessageId: record.messageId,
+        approximateReceiveCount: record.attributes?.ApproximateReceiveCount,
+      })
     } catch (error) {
       console.error(`Failed to process SQS message ${record.messageId}.`, error)
       batchItemFailures.push({ itemIdentifier: record.messageId })
