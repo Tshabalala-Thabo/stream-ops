@@ -356,7 +356,7 @@
         <p class="summary">A practical progress map for the video workflow rebuild, from local domain skeleton to AWS storage, queues, processing, deployment, security, and operations.</p>
       </div>
       <aside class="scorecard">
-        <strong>59%</strong>
+        <strong>64%</strong>
         <span>overall rebuild progress</span>
       </aside>
     </header>
@@ -365,9 +365,9 @@
       <div class="phase-pill"><b>Phase 0</b><strong>100%</strong><div class="meter"><span style="width:100%"></span></div></div>
       <div class="phase-pill"><b>Phase 1</b><strong>100%</strong><div class="meter"><span style="width:100%"></span></div></div>
       <div class="phase-pill"><b>Phase 2</b><strong>100%</strong><div class="meter"><span style="width:100%"></span></div></div>
-      <div class="phase-pill"><b>Phase 3</b><strong>97%</strong><div class="meter"><span style="width:97%"></span></div></div>
+      <div class="phase-pill"><b>Phase 3</b><strong>100%</strong><div class="meter"><span style="width:100%"></span></div></div>
       <div class="phase-pill"><b>Phase 4</b><strong>10%</strong><div class="meter"><span style="width:10%; background:var(--next)"></span></div></div>
-      <div class="phase-pill"><b>Phase 5</b><strong>10%</strong><div class="meter"><span style="width:10%; background:var(--next)"></span></div></div>
+      <div class="phase-pill"><b>Phase 5</b><strong>35%</strong><div class="meter"><span style="width:35%; background:var(--next)"></span></div></div>
       <div class="phase-pill"><b>Phase 6</b><strong>5%</strong><div class="meter"><span style="width:5%; background:var(--todo)"></span></div></div>
     </section>
 
@@ -387,7 +387,6 @@
       <article class="note">
         <h2>Main Work Remaining</h2>
         <ul>
-          <li>Exercise worker failures and DLQ behavior.</li>
           <li>Add deployable AWS SAM stack.</li>
           <li>Add Cognito authentication and production-grade security.</li>
           <li>Add observability: logs, metrics, traces, and health checks.</li>
@@ -492,7 +491,7 @@
     <section class="phase">
       <div class="phase-head">
         <div><h2>Phase 3: Queue And Processing</h2><p>Goal: add asynchronous processing.</p></div>
-        <div class="phase-progress">97%</div>
+        <div class="phase-progress">100%</div>
       </div>
       <div class="phase-body">
         <div>
@@ -524,6 +523,7 @@
             <li><code>apps/worker/src/lambda.ts</code></li>
             <li><code>apps/worker/src/processor.ts</code></li>
             <li><code>apps/worker/src/media.ts</code></li>
+            <li>DLQ drill confirmed with <code>poison-video-1785767105617</code> visible in <code>streamops-dev-processing-dlq</code>.</li>
             <li><code>docs/PHASE_3_WORKER_LAMBDA_NOTES.md</code></li>
           </ul>
         </div>
@@ -562,13 +562,14 @@
     <section class="phase">
       <div class="phase-head">
         <div><h2>Phase 5: Deployment</h2><p>Goal: deploy repeatably.</p></div>
-        <div class="phase-progress">10%</div>
+        <div class="phase-progress">35%</div>
       </div>
       <div class="phase-body">
         <div>
           <h3>Checklist</h3>
           <ul class="checklist">
-            <li class="check"><span class="box"></span><span>Add AWS SAM stack.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Add AWS SAM stack.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Validate and build the SAM stack locally.</span></li>
             <li class="check"><span class="box"></span><span>Provision S3, DynamoDB, SQS, Lambda, Cognito, and CloudWatch resources.</span></li>
             <li class="check"><span class="box"></span><span>Add environment configuration.</span></li>
             <li class="check"><span class="box"></span><span>Add deployment test events.</span></li>
@@ -580,6 +581,10 @@
           <h3>Evidence</h3>
           <ul class="evidence">
             <li><code>apps/worker/src/lambda.ts</code></li>
+            <li><code>infra/sam/template.yaml</code></li>
+            <li><code>docs/PHASE_5_SAM_GUIDE.md</code></li>
+            <li><code>sam validate</code> passed with SAM CLI 1.165.0.</li>
+            <li><code>sam build</code> produced <code>.aws-sam/build/template.yaml</code>.</li>
             <li><code>infra/sam/.gitkeep</code></li>
           </ul>
         </div>
@@ -618,8 +623,7 @@
     <section class="next-panel">
       <h2>Current Next Steps</h2>
       <ol class="steps">
-        <li>Run the DLQ failure drill and confirm the failed message is visible in the DLQ.</li>
-        <li>Start Phase 5 SAM infrastructure for S3, DynamoDB, SQS, and the Lambda-ready worker.</li>
+        <li>Deploy the Phase 5 SAM stack with an FFmpeg Lambda layer ARN.</li>
         <li>Start Phase 4 Cognito after deployment basics are stable.</li>
       </ol>
     </section>

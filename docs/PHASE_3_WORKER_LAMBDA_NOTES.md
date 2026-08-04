@@ -137,7 +137,7 @@ npm run worker:dlq:peek
 Expected result:
 
 ```text
-DLQ contains 1 visible message(s).
+DLQ returned 1 unique visible message(s).
 ```
 
 The SDK user needs read access to inspect the DLQ:

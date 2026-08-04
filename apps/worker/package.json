@@ -8,6 +8,7 @@
     "once": "tsx src/index.ts --once",
     "poison": "tsx src/send-poison-message.ts",
     "dlq:peek": "tsx src/peek-dlq.ts",
+    "build:lambda": "esbuild src/lambda.ts --bundle --platform=node --target=node20 --format=esm --outfile=dist/lambda.mjs",
     "lambda:check": "tsx -e \"import('./src/lambda.ts').then((m) => console.log(typeof m.handler))\"",
     "typecheck": "tsc --noEmit"
   },

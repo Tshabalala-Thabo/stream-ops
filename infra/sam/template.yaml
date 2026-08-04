@@ -1,0 +1,196 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Transform: AWS::Serverless-2016-10-31
+Description: StreamOps dev video-processing infrastructure.
+
+Parameters:
+  ProjectName:
+    Type: String
+    Default: streamops
+    AllowedPattern: "^[a-z0-9-]+$"
+  EnvironmentName:
+    Type: String
+    Default: dev
+    AllowedPattern: "^[a-z0-9-]+$"
+  WorkerTimeoutSeconds:
+    Type: Number
+    Default: 300
+    MinValue: 30
+    MaxValue: 900
+  QueueVisibilityTimeoutSeconds:
+    Type: Number
+    Default: 360
+    MinValue: 30
+    MaxValue: 43200
+  ProcessingMaxReceiveCount:
+    Type: Number
+    Default: 3
+    MinValue: 1
+    MaxValue: 1000
+  FfmpegLayerArn:
+    Type: String
+    Default: ""
+    Description: Optional Lambda layer ARN that provides ffmpeg and ffprobe binaries.
+
+Conditions:
+  HasFfmpegLayer: !Not [!Equals [!Ref FfmpegLayerArn, ""]]
+
+Globals:
+  Function:
+    Runtime: nodejs20.x
+    Architectures:
+      - arm64
+    MemorySize: 2048
+    Timeout: !Ref WorkerTimeoutSeconds
+    Tracing: Active
+    Environment:
+      Variables:
+        AWS_NODEJS_CONNECTION_REUSE_ENABLED: "1"
+
+Resources:
+  SourceBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub "${ProjectName}-${EnvironmentName}-${AWS::AccountId}-${AWS::Region}-storage"
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - "*"
+            AllowedMethods:
+              - GET
+              - PUT
+              - POST
+              - HEAD
+            AllowedOrigins:
+              - "http://localhost:3000"
+            ExposedHeaders:
+              - ETag
+            MaxAge: 3000
+      LifecycleConfiguration:
+        Rules:
+          - Id: AbortIncompleteMultipartUploads
+            Status: Enabled
+            AbortIncompleteMultipartUpload:
+              DaysAfterInitiation: 1
+
+  WorkflowTable:
+    Type: AWS::DynamoDB::Table
+    Properties:
+      TableName: !Sub "${ProjectName}-${EnvironmentName}-workflow"
+      BillingMode: PAY_PER_REQUEST
+      AttributeDefinitions:
+        - AttributeName: PK
+          AttributeType: S
+        - AttributeName: SK
+          AttributeType: S
+      KeySchema:
+        - AttributeName: PK
+          KeyType: HASH
+        - AttributeName: SK
+          KeyType: RANGE
+      TimeToLiveSpecification:
+        AttributeName: ttl
+        Enabled: true
+      SSESpecification:
+        SSEEnabled: true
+
+  ProcessingDeadLetterQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${ProjectName}-${EnvironmentName}-processing-dlq"
+      MessageRetentionPeriod: 1209600
+      SqsManagedSseEnabled: true
+
+  ProcessingQueue:
+    Type: AWS::SQS::Queue
+    Properties:
+      QueueName: !Sub "${ProjectName}-${EnvironmentName}-processing"
+      VisibilityTimeout: !Ref QueueVisibilityTimeoutSeconds
+      MessageRetentionPeriod: 345600
+      SqsManagedSseEnabled: true
+      RedrivePolicy:
+        deadLetterTargetArn: !GetAtt ProcessingDeadLetterQueue.Arn
+        maxReceiveCount: !Ref ProcessingMaxReceiveCount
+
+  WorkerFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub "${ProjectName}-${EnvironmentName}-worker"
+      Description: Processes uploaded StreamOps videos into thumbnails and HLS assets.
+      CodeUri: ../../apps/worker/dist/
+      Handler: lambda.handler
+      EphemeralStorage:
+        Size: 4096
+      Layers: !If
+        - HasFfmpegLayer
+        - - !Ref FfmpegLayerArn
+        - !Ref AWS::NoValue
+      Environment:
+        Variables:
+          STREAMOPS_TABLE_NAME: !Ref WorkflowTable
+          STREAMOPS_SOURCE_BUCKET: !Ref SourceBucket
+          STREAMOPS_PROCESSING_QUEUE_URL: !Ref ProcessingQueue
+          STREAMOPS_PROCESSING_DLQ_URL: !Ref ProcessingDeadLetterQueue
+      Events:
+        ProcessingMessages:
+          Type: SQS
+          Properties:
+            Queue: !GetAtt ProcessingQueue.Arn
+            BatchSize: 1
+            FunctionResponseTypes:
+              - ReportBatchItemFailures
+      Policies:
+        - Statement:
+            - Sid: WorkflowTableAccess
+              Effect: Allow
+              Action:
+                - dynamodb:GetItem
+                - dynamodb:Query
+                - dynamodb:PutItem
+                - dynamodb:UpdateItem
+                - dynamodb:TransactWriteItems
+              Resource: !GetAtt WorkflowTable.Arn
+            - Sid: SourceVideoRead
+              Effect: Allow
+              Action:
+                - s3:GetObject
+              Resource: !Sub "${SourceBucket.Arn}/source/*"
+            - Sid: GeneratedAssetWriteRead
+              Effect: Allow
+              Action:
+                - s3:GetObject
+                - s3:PutObject
+              Resource: !Sub "${SourceBucket.Arn}/generated/*"
+            - Sid: ProcessingQueueConsumer
+              Effect: Allow
+              Action:
+                - sqs:ReceiveMessage
+                - sqs:DeleteMessage
+                - sqs:GetQueueAttributes
+                - sqs:ChangeMessageVisibility
+              Resource: !GetAtt ProcessingQueue.Arn
+
+Outputs:
+  SourceBucketName:
+    Description: S3 bucket for source uploads and generated assets.
+    Value: !Ref SourceBucket
+  WorkflowTableName:
+    Description: DynamoDB workflow table name.
+    Value: !Ref WorkflowTable
+  ProcessingQueueUrl:
+    Description: SQS processing queue URL.
+    Value: !Ref ProcessingQueue
+  ProcessingDeadLetterQueueUrl:
+    Description: SQS processing DLQ URL.
+    Value: !Ref ProcessingDeadLetterQueue
+  WorkerFunctionName:
+    Description: Worker Lambda function name.
+    Value: !Ref WorkerFunction

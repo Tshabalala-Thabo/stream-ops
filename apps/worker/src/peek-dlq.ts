@@ -18,11 +18,17 @@ try {
     waitTimeSeconds: 2,
   })
 
-  if (messages.length === 0) {
+  const uniqueMessages = Array.from(new Map(messages.map((message) => [message.id, message])).values())
+  const duplicateCount = messages.length - uniqueMessages.length
+
+  if (uniqueMessages.length === 0) {
     console.log("DLQ is empty.")
   } else {
-    console.log(`DLQ contains ${messages.length} visible message(s).`)
-    for (const message of messages) {
+    console.log(`DLQ returned ${uniqueMessages.length} unique visible message(s).`)
+    if (duplicateCount > 0) {
+      console.log(`Skipped ${duplicateCount} duplicate receive(s) for the same SQS message ID.`)
+    }
+    for (const message of uniqueMessages) {
       console.log(JSON.stringify({
         id: message.id,
         approximateReceiveCount: message.attributes.ApproximateReceiveCount,

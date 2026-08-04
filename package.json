@@ -13,6 +13,9 @@
     "worker:once": "npm run once -w apps/worker",
     "worker:poison": "npm run poison -w apps/worker",
     "worker:dlq:peek": "npm run dlq:peek -w apps/worker",
+    "worker:lambda:build": "npm run build:lambda -w apps/worker",
+    "sam:build": "npm run worker:lambda:build && sam build --template-file infra/sam/template.yaml --region af-south-1",
+    "sam:validate": "sam validate --template-file infra/sam/template.yaml --region af-south-1",
     "build": "npm run build -w apps/web",
     "lint": "npm run lint --workspaces --if-present",
     "test": "npm run test --workspaces --if-present",
@@ -22,6 +25,7 @@
     "node": ">=20"
   },
   "devDependencies": {
+    "esbuild": "^0.28.1",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3"
   }
