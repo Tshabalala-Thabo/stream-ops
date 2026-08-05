@@ -26,7 +26,8 @@ npm run worker:lambda:build
 Expected output:
 
 ```text
-apps/worker/dist/lambda.mjs
+apps/worker/dist/lambda.js
+apps/worker/dist/package.json
 ```
 
 ## SAM Validate
@@ -140,3 +141,136 @@ Verify without printing credentials:
 ```bash
 awk -F= '/^(AWS_REGION|AWS_PROFILE|WORKFLOW_STORE|STREAMOPS_TABLE_NAME|STREAMOPS_SOURCE_BUCKET|STREAMOPS_PROCESSING_QUEUE_URL|STREAMOPS_PROCESSING_DLQ_URL)=/ { print $1"=<set>" }' apps/web/.env.local
 ```
+
+## Deployment Test Events
+
+These tests focus on the Lambda/SQS deployment contract:
+
+- Direct Lambda invocation proves the deployed handler starts, receives SQS-shaped JSON, and returns the correct partial batch response.
+- SQS handoff proves the deployed event source mapping receives queue messages without running the local worker.
+- CloudWatch logs prove which message ID, video ID, and processing run ID reached the worker.
+
+### Test Event Files
+
+```text
+infra/sam/events/sqs-unsupported-message.json
+infra/sam/events/sqs-poison-processing-message.json
+```
+
+### Direct Lambda: Unsupported Message
+
+Run from an AWS-authenticated terminal:
+
+```bash
+npm run sam:test:worker:unsupported
+```
+
+Expected outcome:
+
+```json
+{"batchItemFailures":[]}
+```
+
+Important training focus:
+
+- Unsupported SQS records should not be retried.
+- The Lambda handler returns an empty `batchItemFailures` array so Lambda treats the record as successful.
+
+### Direct Lambda: Poison Processing Message
+
+Run:
+
+```bash
+npm run sam:test:worker:poison
+```
+
+Expected outcome:
+
+```json
+{"batchItemFailures":[{"itemIdentifier":"deployment-test-poison-message"}]}
+```
+
+Important training focus:
+
+- `ReportBatchItemFailures` is the Lambda/SQS contract for partial batch retry.
+- The poison event uses a missing `videoId`, so DynamoDB returns `video_not_found`.
+- The response tells Lambda which SQS message should be retried.
+
+Expected CloudWatch log fields:
+
+```text
+event=worker.processing.started
+videoId=deployment-test-missing-video
+processingRunId=deployment-test-missing-run
+sqsMessageId=deployment-test-poison-message
+errorCode=video_not_found
+```
+
+Verified deployment evidence:
+
+```text
+npm run sam:test:worker:unsupported
+-> {"batchItemFailures":[]}
+
+npm run sam:test:worker:poison
+-> {"batchItemFailures":[{"itemIdentifier":"deployment-test-poison-message"}]}
+```
+
+### Real SQS Handoff
+
+Make sure the local worker is not running, then send one poison queue message:
+
+```bash
+npm run worker:poison
+```
+
+Expected outcome:
+
+```text
+Poison processing message sent.
+```
+
+Then inspect the source queue:
+
+```bash
+aws sqs get-queue-attributes \
+  --region af-south-1 \
+  --queue-url "$STREAMOPS_PROCESSING_QUEUE_URL" \
+  --attribute-names ApproximateNumberOfMessages ApproximateNumberOfMessagesNotVisible
+```
+
+Expected outcome shortly after send:
+
+```text
+ApproximateNumberOfMessagesNotVisible is 1
+```
+
+or both counts return to `0` if Lambda has already consumed and retried/redriven the message.
+
+Check Lambda logs:
+
+```bash
+aws logs tail "/aws/lambda/streamops-dev-worker" \
+  --region af-south-1 \
+  --since 10m
+```
+
+Expected outcome:
+
+```text
+worker.processing.started
+worker.processing.workflow_error
+video_not_found
+```
+
+Verified SQS handoff evidence:
+
+```text
+poison-video-1785937396350 reached /aws/lambda/streamops-dev-worker from SQS.
+```
+
+Important training focus:
+
+- Queue messages become Lambda invocations through the event source mapping.
+- Visibility timeout and `maxReceiveCount` control retries and DLQ movement.
+- CloudWatch logs are the evidence that the deployed worker, not the local worker, handled the message.

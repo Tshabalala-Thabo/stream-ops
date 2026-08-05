@@ -16,6 +16,8 @@
     "worker:lambda:build": "npm run build:lambda -w apps/worker",
     "sam:build": "npm run worker:lambda:build && sam build --template-file infra/sam/template.yaml --region af-south-1",
     "sam:env:pull": "tsx scripts/pull-sam-env.ts",
+    "sam:test:worker:poison": "tsx scripts/invoke-worker-test-event.ts --event infra/sam/events/sqs-poison-processing-message.json",
+    "sam:test:worker:unsupported": "tsx scripts/invoke-worker-test-event.ts --event infra/sam/events/sqs-unsupported-message.json",
     "sam:validate": "sam validate --template-file infra/sam/template.yaml --region af-south-1",
     "build": "npm run build -w apps/web",
     "lint": "npm run lint --workspaces --if-present",

@@ -1,0 +1,20 @@
+{
+  "Records": [
+    {
+      "messageId": "deployment-test-poison-message",
+      "receiptHandle": "deployment-test-receipt-handle",
+      "body": "{\"messageType\":\"PROCESS_VIDEO\",\"videoId\":\"deployment-test-missing-video\",\"ownerId\":\"local-creator-1\",\"processingRunId\":\"deployment-test-missing-run\",\"sourceKey\":\"source/local-creator-1/deployment-test-missing-video/missing.mp4\",\"requestedAt\":\"2026-08-05T00:00:00.000Z\"}",
+      "attributes": {
+        "ApproximateReceiveCount": "1",
+        "SentTimestamp": "1785888000000",
+        "SenderId": "deployment-test",
+        "ApproximateFirstReceiveTimestamp": "1785888001000"
+      },
+      "messageAttributes": {},
+      "md5OfBody": "deployment-test-md5",
+      "eventSource": "aws:sqs",
+      "eventSourceARN": "arn:aws:sqs:af-south-1:086769945536:streamops-dev-processing",
+      "awsRegion": "af-south-1"
+    }
+  ]
+}

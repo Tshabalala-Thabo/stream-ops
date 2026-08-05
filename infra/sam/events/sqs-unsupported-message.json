@@ -1,0 +1,20 @@
+{
+  "Records": [
+    {
+      "messageId": "deployment-test-unsupported-message",
+      "receiptHandle": "deployment-test-receipt-handle",
+      "body": "{\"messageType\":\"UNSUPPORTED\",\"requestedAt\":\"2026-08-05T00:00:00.000Z\"}",
+      "attributes": {
+        "ApproximateReceiveCount": "1",
+        "SentTimestamp": "1785888000000",
+        "SenderId": "deployment-test",
+        "ApproximateFirstReceiveTimestamp": "1785888001000"
+      },
+      "messageAttributes": {},
+      "md5OfBody": "deployment-test-md5",
+      "eventSource": "aws:sqs",
+      "eventSourceARN": "arn:aws:sqs:af-south-1:086769945536:streamops-dev-processing",
+      "awsRegion": "af-south-1"
+    }
+  ]
+}
