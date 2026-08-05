@@ -356,7 +356,7 @@
         <p class="summary">A practical progress map for the video workflow rebuild, from local domain skeleton to AWS storage, queues, processing, deployment, security, and operations.</p>
       </div>
       <aside class="scorecard">
-        <strong>68%</strong>
+        <strong>70%</strong>
         <span>overall rebuild progress</span>
       </aside>
     </header>
@@ -367,7 +367,7 @@
       <div class="phase-pill"><b>Phase 2</b><strong>100%</strong><div class="meter"><span style="width:100%"></span></div></div>
       <div class="phase-pill"><b>Phase 3</b><strong>100%</strong><div class="meter"><span style="width:100%"></span></div></div>
       <div class="phase-pill"><b>Phase 4</b><strong>10%</strong><div class="meter"><span style="width:10%; background:var(--next)"></span></div></div>
-      <div class="phase-pill"><b>Phase 5</b><strong>55%</strong><div class="meter"><span style="width:55%; background:var(--next)"></span></div></div>
+      <div class="phase-pill"><b>Phase 5</b><strong>65%</strong><div class="meter"><span style="width:65%; background:var(--next)"></span></div></div>
       <div class="phase-pill"><b>Phase 6</b><strong>5%</strong><div class="meter"><span style="width:5%; background:var(--todo)"></span></div></div>
     </section>
 
@@ -387,7 +387,7 @@
       <article class="note">
         <h2>Main Work Remaining</h2>
         <ul>
-          <li>Wire deployed SAM outputs into app and worker environment configuration.</li>
+          <li>Add deployment test events for the worker Lambda and SQS handoff.</li>
           <li>Add Cognito authentication and production-grade security.</li>
           <li>Add observability: logs, metrics, traces, and health checks.</li>
         </ul>
@@ -562,7 +562,7 @@
     <section class="phase">
       <div class="phase-head">
         <div><h2>Phase 5: Deployment</h2><p>Goal: deploy repeatably.</p></div>
-        <div class="phase-progress">55%</div>
+        <div class="phase-progress">65%</div>
       </div>
       <div class="phase-body">
         <div>
@@ -571,7 +571,7 @@
             <li class="check done"><span class="box">✓</span><span>Add AWS SAM stack.</span></li>
             <li class="check done"><span class="box">✓</span><span>Validate and build the SAM stack locally.</span></li>
             <li class="check done"><span class="box">✓</span><span>Provision S3, DynamoDB, SQS, Lambda, Cognito, and CloudWatch resources.</span></li>
-            <li class="check"><span class="box"></span><span>Add environment configuration.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Add environment configuration.</span></li>
             <li class="check"><span class="box"></span><span>Add deployment test events.</span></li>
             <li class="check"><span class="box"></span><span>Add rollback practice.</span></li>
             <li class="check done"><span class="box">✓</span><span>Prepare Lambda-compatible worker handler.</span></li>
@@ -583,6 +583,8 @@
             <li><code>apps/worker/src/lambda.ts</code></li>
             <li><code>infra/sam/template.yaml</code></li>
             <li><code>docs/PHASE_5_SAM_GUIDE.md</code></li>
+            <li><code>scripts/pull-sam-env.ts</code> can sync local env from SAM stack outputs.</li>
+            <li><code>npm run sam:env:pull</code> updated <code>apps/web/.env.local</code> from stack outputs.</li>
             <li><code>sam validate</code> passed with SAM CLI 1.165.0.</li>
             <li><code>sam build</code> produced <code>.aws-sam/build/template.yaml</code>.</li>
             <li><code>sam deploy</code> provisioned the Phase 5 stack resources in <code>af-south-1</code>.</li>
@@ -624,7 +626,6 @@
     <section class="next-panel">
       <h2>Current Next Steps</h2>
       <ol class="steps">
-        <li>Add environment configuration from the SAM stack outputs.</li>
         <li>Add deployment test events for the worker Lambda and SQS handoff.</li>
         <li>Start Phase 4 Cognito after deployment basics are stable.</li>
       </ol>

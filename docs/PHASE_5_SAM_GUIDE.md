@@ -102,3 +102,41 @@ STREAMOPS_PROCESSING_DLQ_URL=<ProcessingDeadLetterQueueUrl>
 ## Current Limitation
 
 The template is ready for validation/build, but deployed video processing requires an FFmpeg Lambda layer or a future container-based Lambda package. Without that layer, the Lambda can receive messages but media processing will fail when it tries to execute `ffprobe` or `ffmpeg`.
+
+## Pull Stack Outputs Into Local Env
+
+After a successful deploy, update local app/worker development config from CloudFormation outputs:
+
+```bash
+npm run sam:env:pull
+```
+
+Defaults:
+
+```text
+stack-name=streamops-dev
+region=af-south-1
+env-file=apps/web/.env.local
+```
+
+Override those defaults when needed:
+
+```bash
+npm run sam:env:pull -- --stack-name streamops-dev --region af-south-1 --env-file apps/web/.env.local
+```
+
+The script preserves unrelated env vars such as `AWS_PROFILE`, sets `WORKFLOW_STORE=aws`, and updates:
+
+```text
+AWS_REGION
+STREAMOPS_TABLE_NAME
+STREAMOPS_SOURCE_BUCKET
+STREAMOPS_PROCESSING_QUEUE_URL
+STREAMOPS_PROCESSING_DLQ_URL
+```
+
+Verify without printing credentials:
+
+```bash
+awk -F= '/^(AWS_REGION|AWS_PROFILE|WORKFLOW_STORE|STREAMOPS_TABLE_NAME|STREAMOPS_SOURCE_BUCKET|STREAMOPS_PROCESSING_QUEUE_URL|STREAMOPS_PROCESSING_DLQ_URL)=/ { print $1"=<set>" }' apps/web/.env.local
+```

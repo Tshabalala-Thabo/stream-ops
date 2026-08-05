@@ -124,7 +124,7 @@ After that, replace the mocks with real S3 multipart upload, DynamoDB persistenc
 
 - [Architecture](docs/ARCHITECTURE.md)
 - [AWS DVA Study Map](docs/AWS_DVA_STUDY_MAP.md)
-- [Rebuild Phases](docs/REBUILD_PHASES.md)
+- [Rebuild Phases](docs/REBUILD_PHASES.html)
 - [Domain Model](docs/DOMAIN_MODEL.md)
 - [Acceptance Scenarios](docs/ACCEPTANCE_SCENARIOS.md)
 - [AWS Services](docs/AWS_SERVICES.md)
