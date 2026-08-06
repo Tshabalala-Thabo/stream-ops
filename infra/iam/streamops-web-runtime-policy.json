@@ -1,0 +1,55 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "WorkflowTableAccess",
+      "Effect": "Allow",
+      "Action": [
+        "dynamodb:GetItem",
+        "dynamodb:PutItem",
+        "dynamodb:Query",
+        "dynamodb:UpdateItem"
+      ],
+      "Resource": "arn:aws:dynamodb:af-south-1:086769945536:table/streamops-dev-workflow"
+    },
+    {
+      "Sid": "SourceUploadAccess",
+      "Effect": "Allow",
+      "Action": [
+        "s3:AbortMultipartUpload",
+        "s3:PutObject",
+        "s3:GetObject"
+      ],
+      "Resource": "arn:aws:s3:::streamops-dev-086769945536-af-south-1-storage/source/*"
+    },
+    {
+      "Sid": "GeneratedPlaybackReadAccess",
+      "Effect": "Allow",
+      "Action": [
+        "s3:GetObject"
+      ],
+      "Resource": "arn:aws:s3:::streamops-dev-086769945536-af-south-1-storage/generated/*"
+    },
+    {
+      "Sid": "ProcessingQueueProducer",
+      "Effect": "Allow",
+      "Action": [
+        "sqs:SendMessage"
+      ],
+      "Resource": "arn:aws:sqs:af-south-1:086769945536:streamops-dev-processing"
+    },
+    {
+      "Sid": "RuntimeConfigRead",
+      "Effect": "Allow",
+      "Action": [
+        "ssm:GetParameter",
+        "ssm:GetParameters",
+        "ssm:GetParametersByPath"
+      ],
+      "Resource": [
+        "arn:aws:ssm:af-south-1:086769945536:parameter/streamops/dev",
+        "arn:aws:ssm:af-south-1:086769945536:parameter/streamops/dev/*"
+      ]
+    }
+  ]
+}
