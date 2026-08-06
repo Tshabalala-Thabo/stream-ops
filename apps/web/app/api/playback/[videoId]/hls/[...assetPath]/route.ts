@@ -1,5 +1,7 @@
 import { getAwsWorkflow } from "@/lib/workflow/aws"
-import { isAwsWorkflowStore, LOCAL_OWNER_ID } from "@/lib/workflow/store"
+import { AuthError, authenticateCognitoRequest } from "@/lib/auth/cognito"
+import { logWarn } from "@/lib/logging"
+import { isAwsWorkflowStore } from "@/lib/workflow/store"
 import type { Video, VideoRendition } from "@/lib/types"
 import { WorkflowError } from "@streamops/core"
 
@@ -7,7 +9,7 @@ const PLAYLIST_CONTENT_TYPE = "application/vnd.apple.mpegurl"
 const SEGMENT_CONTENT_TYPE = "video/mp2t"
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ videoId: string; assetPath: string[] }> }
 ) {
   const { videoId, assetPath } = await params
@@ -21,10 +23,11 @@ export async function GET(
   }
 
   try {
+    const creator = await authenticateCognitoRequest(request)
     const { dynamo, s3Uploads } = getAwsWorkflow()
     const [video, renditions] = await Promise.all([
-      dynamo.getVideo(videoId, LOCAL_OWNER_ID),
-      dynamo.listRenditions(videoId, LOCAL_OWNER_ID),
+      dynamo.getVideo(videoId, creator.ownerId),
+      dynamo.listRenditions(videoId, creator.ownerId),
     ])
 
     const hlsPrefix = getHlsPrefix(video)
@@ -50,7 +53,16 @@ export async function GET(
       headers: playbackHeaders(contentType),
     })
   } catch (error) {
+    if (error instanceof AuthError) {
+      logWarn("playback.auth.rejected", { videoId, errorCode: error.code })
+      return Response.json(
+        { authenticated: false, code: error.code, message: error.message },
+        { status: 401 }
+      )
+    }
+
     if (error instanceof WorkflowError) {
+      logWarn("playback.request.rejected", { videoId, errorCode: error.code })
       return Response.json(
         { code: error.code, message: error.message },
         { status: error.code.endsWith("_not_found") ? 404 : 400 }
@@ -58,6 +70,7 @@ export async function GET(
     }
 
     if (isAccessDeniedError(error)) {
+      logWarn("playback.s3.access_denied", { videoId })
       return Response.json(
         {
           code: "playback_s3_access_denied",

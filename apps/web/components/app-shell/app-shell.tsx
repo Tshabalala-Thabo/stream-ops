@@ -6,6 +6,7 @@ import { LayoutDashboard, UploadCloud } from "lucide-react"
 import Link from "next/link"
 import { usePathname } from "next/navigation"
 
+import { AuthActions } from "@/components/app-shell/auth-actions"
 import { ThemeToggle } from "@/components/theme-toggle"
 import { buttonVariants } from "@/components/ui/button"
 import { cn } from "@/lib/utils"
@@ -65,6 +66,7 @@ export function AppShell({ children }: { children: React.ReactNode }) {
           </nav>
 
           <div className="ml-auto flex items-center gap-2">
+            <AuthActions />
             <ThemeToggle />
             <Link href="/upload" className={buttonVariants({ className: "hidden gap-2 sm:inline-flex" })}>
               <UploadCloud />

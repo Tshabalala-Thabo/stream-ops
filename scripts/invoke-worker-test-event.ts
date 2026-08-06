@@ -13,23 +13,29 @@ const stackName = args["stack-name"] ?? "streamops-dev"
 const region = args.region ?? "af-south-1"
 const eventFile = args.event ?? "infra/sam/events/sqs-unsupported-message.json"
 const functionName = args.function ?? getWorkerFunctionName(stackName, region)
+const qualifier = args.qualifier
 const workspace = mkdtempSync(join(tmpdir(), "streamops-lambda-invoke-"))
 const responseFile = join(workspace, "response.json")
+const invokeArgs = [
+  "lambda",
+  "invoke",
+  "--region",
+  region,
+  "--function-name",
+  functionName,
+  "--cli-binary-format",
+  "raw-in-base64-out",
+  "--payload",
+  `file://${eventFile}`,
+  responseFile,
+]
+
+if (qualifier) {
+  invokeArgs.splice(6, 0, "--qualifier", qualifier)
+}
 
 try {
-  const output = execFileSync("aws", [
-    "lambda",
-    "invoke",
-    "--region",
-    region,
-    "--function-name",
-    functionName,
-    "--cli-binary-format",
-    "raw-in-base64-out",
-    "--payload",
-    `file://${eventFile}`,
-    responseFile,
-  ], { encoding: "utf8" })
+  const output = execFileSync("aws", invokeArgs, { encoding: "utf8" })
 
   console.log(output.trim())
   console.log(readFileSync(responseFile, "utf8"))

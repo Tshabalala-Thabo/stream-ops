@@ -30,14 +30,18 @@ const outputs = new Map(
     .map((output) => [output.OutputKey as string, output.OutputValue as string])
 )
 
-const nextValues = {
+const nextValues = compactValues({
   AWS_REGION: region,
   WORKFLOW_STORE: "aws",
   STREAMOPS_TABLE_NAME: requireOutput(outputs, "WorkflowTableName"),
   STREAMOPS_SOURCE_BUCKET: requireOutput(outputs, "SourceBucketName"),
   STREAMOPS_PROCESSING_QUEUE_URL: requireOutput(outputs, "ProcessingQueueUrl"),
   STREAMOPS_PROCESSING_DLQ_URL: requireOutput(outputs, "ProcessingDeadLetterQueueUrl"),
-}
+  COGNITO_USER_POOL_ID: optionalOutput(outputs, "CognitoUserPoolId"),
+  COGNITO_CLIENT_ID: optionalOutput(outputs, "CognitoUserPoolClientId"),
+  COGNITO_ISSUER: optionalOutput(outputs, "CognitoIssuer"),
+  COGNITO_DOMAIN: optionalOutput(outputs, "CognitoDomain"),
+})
 
 const existing = existsSync(envFile) ? readFileSync(envFile, "utf8") : ""
 const next = upsertEnv(existing, nextValues)
@@ -78,6 +82,16 @@ function requireOutput(outputs: Map<string, string>, key: string) {
   }
 
   return value
+}
+
+function optionalOutput(outputs: Map<string, string>, key: string) {
+  return outputs.get(key)
+}
+
+function compactValues(values: Record<string, string | undefined>) {
+  return Object.fromEntries(
+    Object.entries(values).filter((entry): entry is [string, string] => entry[1] !== undefined)
+  )
 }
 
 function upsertEnv(contents: string, values: Record<string, string>) {

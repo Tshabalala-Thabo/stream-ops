@@ -274,3 +274,115 @@ Important training focus:
 - Queue messages become Lambda invocations through the event source mapping.
 - Visibility timeout and `maxReceiveCount` control retries and DLQ movement.
 - CloudWatch logs are the evidence that the deployed worker, not the local worker, handled the message.
+
+## Rollback Practice
+
+This drill practices Lambda version and alias rollback without breaking the active SQS event source mapping. The production queue still invokes the stack-managed worker function, while the drill uses a separate alias named `rollback-practice`.
+
+Important training focus:
+
+- Lambda published versions are immutable snapshots.
+- Aliases are movable pointers to versions.
+- A rollback can be as small as pointing an alias back to the last known-good version.
+- CloudFormation/SAM rollback and Lambda alias rollback solve different deployment problems.
+
+### 1. Publish A Known-Good Snapshot
+
+```bash
+npm run sam:rollback -- snapshot
+```
+
+Expected outcome:
+
+```text
+Published streamops-dev-worker version <N>.
+Alias rollback-practice now points to version <N>.
+CodeSha256=<hash>
+```
+
+Record `<N>` as the known-good version.
+
+### 2. Prove The Alias Works
+
+```bash
+npm run sam:rollback:test
+```
+
+Expected outcome:
+
+```json
+{"batchItemFailures":[]}
+```
+
+This invokes `streamops-dev-worker:rollback-practice` with the unsupported-message event. Empty `batchItemFailures` proves the alias points at a working handler.
+
+### 3. Publish A Second Snapshot
+
+After any future worker deployment, publish another snapshot:
+
+```bash
+npm run sam:rollback -- snapshot
+```
+
+Expected outcome:
+
+```text
+Published streamops-dev-worker version <M>.
+Alias rollback-practice now points to version <M>.
+```
+
+Record `<M>` as the candidate version.
+
+### 4. Roll Back The Alias
+
+Move the alias back to the known-good version from step 1:
+
+```bash
+npm run sam:rollback -- point-alias --version <N>
+```
+
+Expected outcome:
+
+```text
+Alias rollback-practice now points to version <N>.
+```
+
+Verify:
+
+```bash
+npm run sam:rollback -- show-alias
+npm run sam:rollback:test
+```
+
+Expected outcome:
+
+```text
+Alias rollback-practice points to version <N>.
+```
+
+and:
+
+```json
+{"batchItemFailures":[]}
+```
+
+Evidence for the checklist:
+
+- A Lambda version was published.
+- `rollback-practice` alias was created or moved.
+- Alias-targeted test invocation succeeded.
+
+Verified rollback evidence:
+
+```text
+npm run sam:rollback -- snapshot
+-> Published streamops-dev-worker version 1.
+-> Alias rollback-practice now points to version 1.
+
+npm run sam:rollback:test
+-> ExecutedVersion: 1
+-> {"batchItemFailures":[]}
+
+npm run sam:rollback -- point-alias --version 1
+-> Alias rollback-practice now points to version 1.
+```

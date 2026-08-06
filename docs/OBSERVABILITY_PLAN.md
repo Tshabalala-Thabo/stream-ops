@@ -41,6 +41,13 @@ Initial metrics:
 - `ProcessingDurationMs`
 - `SqsMessageAgeMs`
 
+Implemented worker EMF metrics:
+
+- `apps/worker/src/emf.ts`
+- `docs/PHASE_6_EMF_METRICS_GUIDE.md`
+- Namespace: `StreamOps/Worker`
+- Dimensions: `Environment`, `Outcome`
+
 ## Tracing
 
 Use X-Ray or explicit trace IDs across:
@@ -72,4 +79,3 @@ Document log queries for:
 - DLQ message
 - FFmpeg failure
 - Unauthorized access attempt
-

@@ -5,6 +5,7 @@ import {
   getStreamOpsAwsConfig,
   requireProcessingQueueUrl,
 } from "@streamops/aws"
+import { safeErrorForLog } from "@streamops/core"
 
 import { loadLocalEnv } from "./env"
 import { parseProcessingJob, processProcessingJob } from "./processor"
@@ -56,6 +57,6 @@ async function pollOnce() {
 }
 
 main().catch((error) => {
-  console.error(error)
+  console.error(JSON.stringify({ level: "error", event: "worker.fatal", error: safeErrorForLog(error) }))
   process.exitCode = 1
 })

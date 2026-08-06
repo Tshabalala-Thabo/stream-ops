@@ -10,6 +10,7 @@
     "dlq:peek": "tsx src/peek-dlq.ts",
     "build:lambda": "esbuild src/lambda.ts --bundle --platform=node --target=node20 --format=cjs --outfile=dist/lambda.js && node -e \"require('node:fs').writeFileSync('dist/package.json', JSON.stringify({ name: 'streamops-worker-lambda', version: '0.1.0', private: true, main: 'lambda.js', type: 'commonjs' }, null, 2) + '\\n')\"",
     "lambda:check": "tsx -e \"import('./src/lambda.ts').then((m) => console.log(typeof m.handler))\"",
+    "test": "tsx --test src/*.test.ts",
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {

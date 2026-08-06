@@ -1,8 +1,8 @@
 import { WorkflowError, type UploadedPart } from "@streamops/core"
 
 import { getAwsWorkflow } from "@/lib/workflow/aws"
-import { getWorkflowStore, LOCAL_OWNER_ID } from "@/lib/workflow/store"
-import { workflowJson } from "@/lib/workflow/http"
+import { getWorkflowStore } from "@/lib/workflow/store"
+import { authenticatedWorkflowJson } from "@/lib/workflow/http"
 import { isAwsWorkflowStore } from "@/lib/workflow/store"
 
 export async function POST(
@@ -11,12 +11,12 @@ export async function POST(
 ) {
   const { sessionId } = await params
 
-  return workflowJson(async () => {
+  return authenticatedWorkflowJson(request, async (creator) => {
     if (isAwsWorkflowStore()) {
       const { dynamo, s3Uploads } = getAwsWorkflow()
       const payload = await request.json().catch(() => ({}))
       const parts = parseUploadedParts(payload.parts)
-      const session = await dynamo.getUploadSession(sessionId, LOCAL_OWNER_ID)
+      const session = await dynamo.getUploadSession(sessionId, creator.ownerId)
 
       await s3Uploads.completeMultipartUpload({
         key: session.objectKey,
@@ -24,10 +24,10 @@ export async function POST(
         parts,
       })
 
-      return dynamo.completeUpload(sessionId, LOCAL_OWNER_ID, parts)
+      return dynamo.completeUpload(sessionId, creator.ownerId, parts)
     }
 
-    return getWorkflowStore().completeUpload(sessionId, LOCAL_OWNER_ID)
+    return getWorkflowStore().completeUpload(sessionId, creator.ownerId)
   })
 }
 

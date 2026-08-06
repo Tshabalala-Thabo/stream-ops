@@ -1,22 +1,22 @@
 import { DEFAULT_PART_SIZE, validateCreateUploadInput } from "@streamops/core"
 
 import { getAwsWorkflow } from "@/lib/workflow/aws"
-import { getWorkflowStore, LOCAL_OWNER_ID } from "@/lib/workflow/store"
-import { workflowJson } from "@/lib/workflow/http"
+import { getWorkflowStore } from "@/lib/workflow/store"
+import { authenticatedWorkflowJson } from "@/lib/workflow/http"
 import { isAwsWorkflowStore } from "@/lib/workflow/store"
 
-export async function GET() {
-  return workflowJson(() => ({
-    uploadSessions: getWorkflowStore().listUploadSessions(LOCAL_OWNER_ID),
+export async function GET(request: Request) {
+  return authenticatedWorkflowJson(request, (creator) => ({
+    uploadSessions: getWorkflowStore().listUploadSessions(creator.ownerId),
   }))
 }
 
 export async function POST(request: Request) {
   const payload = await request.json()
 
-  return workflowJson(async () => {
+  return authenticatedWorkflowJson(request, async (creator) => {
     const uploadInput = {
-      ownerId: LOCAL_OWNER_ID,
+      ownerId: creator.ownerId,
       title: String(payload.title ?? ""),
       description: payload.description ? String(payload.description) : null,
       fileName: String(payload.fileName ?? ""),

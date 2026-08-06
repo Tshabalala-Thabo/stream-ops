@@ -356,7 +356,7 @@
         <p class="summary">A practical progress map for the video workflow rebuild, from local domain skeleton to AWS storage, queues, processing, deployment, security, and operations.</p>
       </div>
       <aside class="scorecard">
-        <strong>72%</strong>
+        <strong>86%</strong>
         <span>overall rebuild progress</span>
       </aside>
     </header>
@@ -366,9 +366,9 @@
       <div class="phase-pill"><b>Phase 1</b><strong>100%</strong><div class="meter"><span style="width:100%"></span></div></div>
       <div class="phase-pill"><b>Phase 2</b><strong>100%</strong><div class="meter"><span style="width:100%"></span></div></div>
       <div class="phase-pill"><b>Phase 3</b><strong>100%</strong><div class="meter"><span style="width:100%"></span></div></div>
-      <div class="phase-pill"><b>Phase 4</b><strong>10%</strong><div class="meter"><span style="width:10%; background:var(--next)"></span></div></div>
-      <div class="phase-pill"><b>Phase 5</b><strong>75%</strong><div class="meter"><span style="width:75%; background:var(--next)"></span></div></div>
-      <div class="phase-pill"><b>Phase 6</b><strong>5%</strong><div class="meter"><span style="width:5%; background:var(--todo)"></span></div></div>
+      <div class="phase-pill"><b>Phase 4</b><strong>100%</strong><div class="meter"><span style="width:100%"></span></div></div>
+      <div class="phase-pill"><b>Phase 5</b><strong>90%</strong><div class="meter"><span style="width:90%; background:var(--next)"></span></div></div>
+      <div class="phase-pill"><b>Phase 6</b><strong>20%</strong><div class="meter"><span style="width:20%; background:var(--next)"></span></div></div>
     </section>
 
     <section class="section-grid">
@@ -387,8 +387,8 @@
       <article class="note">
         <h2>Main Work Remaining</h2>
         <ul>
-          <li>Practice rollback for a deployed worker change.</li>
-          <li>Add Cognito authentication and production-grade security.</li>
+          <li>Run stack deletion/recreation drill when you are ready to prove full environment teardown.</li>
+          <li>Add observability: metrics, trace/correlation IDs, health checks, and Logs Insights examples.</li>
           <li>Add observability: logs, metrics, traces, and health checks.</li>
         </ul>
       </article>
@@ -533,27 +533,65 @@
     <section class="phase">
       <div class="phase-head">
         <div><h2>Phase 4: Auth And Security</h2><p>Goal: practice AWS-native authentication and authorization.</p></div>
-        <div class="phase-progress">10%</div>
+        <div class="phase-progress">100%</div>
       </div>
       <div class="phase-body">
         <div>
           <h3>Checklist</h3>
           <ul class="checklist">
-            <li class="check"><span class="box"></span><span>Add Cognito.</span></li>
-            <li class="check"><span class="box"></span><span>Validate JWTs server-side.</span></li>
-            <li class="check"><span class="box"></span><span>Enforce owner checks from authenticated user identity.</span></li>
-            <li class="check"><span class="box"></span><span>Replace hardcoded <code>LOCAL_OWNER_ID</code>.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Add Cognito.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Validate JWTs server-side.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Enforce owner checks from authenticated user identity.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Replace hardcoded <code>LOCAL_OWNER_ID</code>.</span></li>
             <li class="check done"><span class="box">✓</span><span>Add initial least-privilege IAM policy for dev S3, DynamoDB, and SQS access.</span></li>
-            <li class="check"><span class="box"></span><span>Add production least-privilege IAM policies.</span></li>
-            <li class="check"><span class="box"></span><span>Move configuration to AWS-managed config/secrets.</span></li>
-            <li class="check"><span class="box"></span><span>Add log sanitization.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Add production least-privilege IAM policies.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Move configuration to AWS-managed config/secrets.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Add log sanitization.</span></li>
           </ul>
         </div>
         <div>
           <h3>Evidence</h3>
           <ul class="evidence">
-            <li>Owner checks exist at the domain/store layer.</li>
-            <li>Real Cognito identity is not implemented yet.</li>
+            <li><code>infra/sam/template.yaml</code> provisions <code>AWS::Cognito::UserPool</code> and <code>AWS::Cognito::UserPoolClient</code>.</li>
+            <li><code>docs/PHASE_4_COGNITO_GUIDE.md</code></li>
+            <li><code>sam deploy</code> created <code>streamops-dev-creators</code> and <code>streamops-dev-web</code>.</li>
+            <li><code>npm run sam:env:pull</code> added <code>COGNITO_USER_POOL_ID</code>, <code>COGNITO_CLIENT_ID</code>, and <code>COGNITO_ISSUER</code>.</li>
+            <li><code>infra/sam/template.yaml</code> now adds <code>AWS::Cognito::UserPoolDomain</code> so browser sign-in can use Cognito hosted UI.</li>
+            <li><code>scripts/pull-sam-env.ts</code> now syncs <code>COGNITO_DOMAIN</code> from stack outputs.</li>
+            <li><code>apps/web/lib/auth/cognito.ts</code> verifies Cognito JWT issuer, token use, app client ID, and <code>sub</code>.</li>
+            <li><code>apps/web/lib/auth/oauth.ts</code> implements OAuth authorization code plus PKCE helpers.</li>
+            <li><code>apps/web/app/api/auth/sign-in/route.ts</code>, <code>apps/web/app/auth/callback/route.ts</code>, and <code>apps/web/app/api/auth/sign-out/route.ts</code> implement sign-in, callback, and sign-out.</li>
+            <li><code>apps/web/components/app-shell/auth-actions.tsx</code> adds header sign-in/sign-out controls.</li>
+            <li><code>apps/web/app/api/auth/session/route.ts</code> exposes a server-side auth check endpoint.</li>
+            <li><code>npm run typecheck</code> passed after adding JWT validation.</li>
+            <li><code>sam validate</code> passed after adding the hosted UI domain.</li>
+            <li><code>GET /api/auth/session</code> without a bearer token returns <code>401 auth_token_required</code>.</li>
+            <li>Browser sign-in through Cognito returns authenticated JSON from <code>GET /api/auth/session</code> with Cognito <code>sub</code> as <code>ownerId</code>.</li>
+            <li><code>authenticatedWorkflowJson</code> enforces Cognito auth before workflow route handlers access the store.</li>
+            <li>Workflow upload, video list/detail, queue, processing simulation, and playback routes now use authenticated Cognito <code>ownerId</code>.</li>
+            <li><code>LOCAL_OWNER_ID</code> was removed from the web workflow store module.</li>
+            <li><code>npm run typecheck</code> passed after replacing hardcoded route ownership.</li>
+            <li>Owner checks now run with the authenticated Cognito identity at the route-handler and domain/store layers.</li>
+            <li><code>infra/iam/streamops-deployer-policy.json</code> defines customer managed deployer permissions for SAM and StreamOps resources.</li>
+            <li><code>infra/iam/streamops-web-runtime-policy.json</code> defines web/API runtime data-plane permissions.</li>
+            <li><code>scripts/validate-iam-policies.ts</code> validates policy JSON and rejects wildcard actions.</li>
+            <li><code>npm run iam:policies:validate</code> passed.</li>
+            <li><code>aws accessanalyzer validate-policy</code> returned <code>findings: []</code> for both production IAM policies.</li>
+            <li><code>docs/PHASE_4_IAM_GUIDE.md</code></li>
+            <li><code>infra/sam/template.yaml</code> now defines <code>AWS::SSM::Parameter</code> resources for runtime config under <code>/streamops/dev/*</code>.</li>
+            <li><code>scripts/pull-ssm-config.ts</code> can sync local env from SSM Parameter Store.</li>
+            <li><code>npm run config:pull</code> is available after the SSM parameters are deployed.</li>
+            <li><code>infra/iam/streamops-deployer-policy.json</code> and <code>infra/iam/streamops-web-runtime-policy.json</code> include scoped SSM access for <code>/streamops/dev/*</code>.</li>
+            <li><code>sam deploy</code> completed successfully after adding SSM runtime config resources.</li>
+            <li><code>npm run config:pull</code> updated <code>apps/web/.env.local</code> from SSM Parameter Store with all expected variables.</li>
+            <li><code>docs/PHASE_4_CONFIG_GUIDE.md</code></li>
+            <li><code>packages/core/src/log-sanitizer.ts</code> centralizes redaction for sensitive log fields and values.</li>
+            <li><code>packages/core/src/log-sanitizer.test.ts</code> verifies token, cookie, credential, and presigned URL redaction.</li>
+            <li><code>apps/web/lib/logging.ts</code> adds sanitized structured web logs.</li>
+            <li>Auth, workflow, playback, worker, and Lambda failure logs avoid raw tokens, cookies, presigned URLs, and raw Error objects.</li>
+            <li><code>npm run test --workspaces --if-present</code> passed with sanitizer tests.</li>
+            <li><code>npm run typecheck</code> passed after log sanitization changes.</li>
+            <li><code>docs/PHASE_4_LOG_SANITIZATION_GUIDE.md</code></li>
           </ul>
         </div>
       </div>
@@ -562,7 +600,7 @@
     <section class="phase">
       <div class="phase-head">
         <div><h2>Phase 5: Deployment</h2><p>Goal: deploy repeatably.</p></div>
-        <div class="phase-progress">75%</div>
+        <div class="phase-progress">90%</div>
       </div>
       <div class="phase-body">
         <div>
@@ -573,7 +611,7 @@
             <li class="check done"><span class="box">✓</span><span>Provision S3, DynamoDB, SQS, Lambda, and CloudWatch resources.</span></li>
             <li class="check done"><span class="box">✓</span><span>Add environment configuration.</span></li>
             <li class="check done"><span class="box">✓</span><span>Add deployment test events.</span></li>
-            <li class="check"><span class="box"></span><span>Add rollback practice.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Add rollback practice.</span></li>
             <li class="check done"><span class="box">✓</span><span>Prepare Lambda-compatible worker handler.</span></li>
           </ul>
         </div>
@@ -587,6 +625,7 @@
             <li><code>docs/PHASE_5_SAM_GUIDE.md</code></li>
             <li><code>scripts/pull-sam-env.ts</code> can sync local env from SAM stack outputs.</li>
             <li><code>scripts/invoke-worker-test-event.ts</code> invokes deployed worker test events.</li>
+            <li><code>scripts/worker-rollback-practice.ts</code> manages the rollback-practice Lambda alias.</li>
             <li><code>npm run sam:env:pull</code> updated <code>apps/web/.env.local</code> from stack outputs.</li>
             <li><code>sam validate</code> passed with SAM CLI 1.165.0.</li>
             <li><code>sam build</code> produced <code>.aws-sam/build/template.yaml</code>.</li>
@@ -594,6 +633,8 @@
             <li><code>npm run sam:test:worker:unsupported</code> returned an empty batch failure list.</li>
             <li><code>npm run sam:test:worker:poison</code> returned a batch failure for <code>deployment-test-poison-message</code>.</li>
             <li>CloudWatch confirmed SQS handoff for <code>poison-video-1785937396350</code>.</li>
+            <li><code>npm run sam:rollback -- snapshot</code> published worker version <code>1</code>.</li>
+            <li><code>rollback-practice</code> alias invoked version <code>1</code> successfully.</li>
             <li><code>infra/sam/.gitkeep</code></li>
           </ul>
         </div>
@@ -603,14 +644,14 @@
     <section class="phase">
       <div class="phase-head">
         <div><h2>Phase 6: Observability And Optimization</h2><p>Goal: make operations visible.</p></div>
-        <div class="phase-progress">5%</div>
+        <div class="phase-progress">20%</div>
       </div>
       <div class="phase-body">
         <div>
           <h3>Checklist</h3>
           <ul class="checklist">
             <li class="check"><span class="box"></span><span>Add structured logs.</span></li>
-            <li class="check"><span class="box"></span><span>Add EMF metrics.</span></li>
+            <li class="check done"><span class="box">✓</span><span>Add EMF metrics.</span></li>
             <li class="check"><span class="box"></span><span>Add trace/correlation IDs.</span></li>
             <li class="check"><span class="box"></span><span>Add health checks.</span></li>
             <li class="check"><span class="box"></span><span>Add Logs Insights examples.</span></li>
@@ -624,6 +665,12 @@
           <ul class="evidence">
             <li><code>docs/OBSERVABILITY_PLAN.md</code></li>
             <li>Basic console logging exists in the worker only.</li>
+            <li><code>apps/worker/src/emf.ts</code> emits CloudWatch Embedded Metric Format logs.</li>
+            <li><code>apps/worker/src/emf.test.ts</code> verifies EMF shape and sanitizer behavior.</li>
+            <li><code>apps/worker/src/processor.ts</code> emits <code>ProcessingStarted</code>, <code>ProcessingSucceeded</code>, <code>ProcessingFailed</code>, <code>WorkflowError</code>, <code>ProcessingDurationMs</code>, and <code>RenditionCount</code>.</li>
+            <li><code>infra/sam/template.yaml</code> sets <code>STREAMOPS_ENVIRONMENT</code> for the worker Lambda metric dimension.</li>
+            <li><code>npm run test --workspaces --if-present</code>, <code>npm run typecheck</code>, <code>npm run worker:lambda:build</code>, and <code>npm run sam:validate</code> passed.</li>
+            <li><code>docs/PHASE_6_EMF_METRICS_GUIDE.md</code></li>
           </ul>
         </div>
       </div>
@@ -632,8 +679,9 @@
     <section class="next-panel">
       <h2>Current Next Steps</h2>
       <ol class="steps">
-        <li>Add rollback practice for the deployed SAM worker.</li>
-        <li>Start Phase 4 Cognito after deployment basics are stable.</li>
+        <li>Add trace/correlation IDs across upload, queue, worker, and playback flows.</li>
+        <li>Add health checks and Logs Insights examples.</li>
+        <li>Run a stack deletion/recreation drill for Phase 5 exit criteria when preserving dev resources is no longer needed.</li>
       </ol>
     </section>
 

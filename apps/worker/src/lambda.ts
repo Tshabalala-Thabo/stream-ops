@@ -1,3 +1,5 @@
+import { safeErrorForLog } from "@streamops/core"
+
 import { parseProcessingJob, processProcessingJob } from "./processor"
 
 type SqsRecord = {
@@ -20,7 +22,11 @@ export async function handler(event: SqsEvent): Promise<SqsBatchResponse> {
   for (const record of event.Records) {
     const job = parseProcessingJob(parseJson(record.body))
     if (!job) {
-      console.warn(`Ignoring unsupported SQS message ${record.messageId}.`)
+      console.warn(JSON.stringify({
+        level: "warn",
+        event: "worker.sqs.unsupported_message",
+        sqsMessageId: record.messageId,
+      }))
       continue
     }
 
@@ -30,7 +36,12 @@ export async function handler(event: SqsEvent): Promise<SqsBatchResponse> {
         approximateReceiveCount: record.attributes?.ApproximateReceiveCount,
       })
     } catch (error) {
-      console.error(`Failed to process SQS message ${record.messageId}.`, error)
+      console.error(JSON.stringify({
+        level: "error",
+        event: "worker.sqs.message_failed",
+        sqsMessageId: record.messageId,
+        error: safeErrorForLog(error),
+      }))
       batchItemFailures.push({ itemIdentifier: record.messageId })
     }
   }

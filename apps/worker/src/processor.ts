@@ -5,8 +5,9 @@ import {
   type ProcessingJobMessage,
 } from "@streamops/aws"
 
-import { WorkflowError } from "@streamops/core"
+import { WorkflowError, safeErrorForLog, sanitizeLogFields } from "@streamops/core"
 
+import { logWorkerEmfMetric } from "./emf"
 import { processVideoAssets } from "./media"
 
 export type WorkerServices = {
@@ -33,9 +34,15 @@ export async function processProcessingJob(
   services: WorkerServices = createWorkerServices(),
   context: ProcessingJobContext = {}
 ) {
+  const startedAt = Date.now()
   logWorkerInfo("worker.processing.started", {
     ...getJobLogContext(job, context),
     sourceKey: job.sourceKey,
+  })
+  logWorkerEmfMetric({
+    outcome: "started",
+    metrics: [{ name: "ProcessingStarted", unit: "Count", value: 1 }],
+    fields: getJobLogContext(job, context),
   })
 
   try {
@@ -64,20 +71,53 @@ export async function processProcessingJob(
       renditionCount: assets.renditions.length,
       assetCounts: assets.assetCounts,
     })
+    logWorkerEmfMetric({
+      outcome: "succeeded",
+      metrics: [
+        { name: "ProcessingSucceeded", unit: "Count", value: 1 },
+        { name: "ProcessingDurationMs", unit: "Milliseconds", value: Date.now() - startedAt },
+        { name: "RenditionCount", unit: "Count", value: assets.renditions.length },
+      ],
+      fields: getJobLogContext(job, context),
+    })
   } catch (error) {
     if (error instanceof WorkflowError) {
       logWorkerError("worker.processing.workflow_error", {
         ...getJobLogContext(job, context),
         errorCode: error.code,
       })
+      logWorkerEmfMetric({
+        outcome: "workflow_error",
+        metrics: [
+          { name: "ProcessingFailed", unit: "Count", value: 1 },
+          { name: "WorkflowError", unit: "Count", value: 1 },
+          { name: "ProcessingDurationMs", unit: "Milliseconds", value: Date.now() - startedAt },
+        ],
+        fields: {
+          ...getJobLogContext(job, context),
+          errorCode: error.code,
+        },
+      })
       throw error
     }
 
-    const message = error instanceof Error ? error.message : "Unknown worker error."
+    const safeError = safeErrorForLog(error)
+    const message = safeError.message
     await services.dynamo.failProcessing(job.videoId, job.ownerId, message, job.processingRunId).catch(() => undefined)
     logWorkerError("worker.processing.failed", {
       ...getJobLogContext(job, context),
-      errorMessage: message,
+      error: safeError,
+    })
+    logWorkerEmfMetric({
+      outcome: "failed",
+      metrics: [
+        { name: "ProcessingFailed", unit: "Count", value: 1 },
+        { name: "ProcessingDurationMs", unit: "Milliseconds", value: Date.now() - startedAt },
+      ],
+      fields: {
+        ...getJobLogContext(job, context),
+        error: safeError,
+      },
     })
     throw error
   }
@@ -121,13 +161,9 @@ function getJobLogContext(job: ProcessingJobMessage, context: ProcessingJobConte
 }
 
 function logWorkerInfo(event: string, fields: Record<string, unknown>) {
-  console.log(JSON.stringify({ level: "info", event, ...compactLogFields(fields) }))
+  console.log(JSON.stringify({ level: "info", event, ...sanitizeLogFields(fields) }))
 }
 
 function logWorkerError(event: string, fields: Record<string, unknown>) {
-  console.error(JSON.stringify({ level: "error", event, ...compactLogFields(fields) }))
-}
-
-function compactLogFields(fields: Record<string, unknown>) {
-  return Object.fromEntries(Object.entries(fields).filter(([, value]) => value !== undefined))
+  console.error(JSON.stringify({ level: "error", event, ...sanitizeLogFields(fields) }))
 }

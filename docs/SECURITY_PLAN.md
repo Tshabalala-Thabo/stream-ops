@@ -29,6 +29,12 @@ Separate runtime roles:
 - Worker role
 - Deployment role
 
+Policy artifacts:
+
+- `infra/iam/streamops-deployer-policy.json`
+- `infra/iam/streamops-web-runtime-policy.json`
+- `docs/PHASE_4_IAM_GUIDE.md`
+
 Avoid broad permissions:
 
 - No `s3:*`
@@ -45,6 +51,7 @@ Avoid broad permissions:
 ## Secrets And Config
 
 - Use environment variables only for non-sensitive config.
+- Store non-secret runtime config in SSM Parameter Store under `/streamops/dev/*`.
 - Use Secrets Manager for secrets.
 - Use Parameter Store or AppConfig for environment-specific config.
 
@@ -61,3 +68,8 @@ Never log:
 
 Prefer correlation IDs, video IDs, and upload session IDs.
 
+Implemented sanitizer:
+
+- `packages/core/src/log-sanitizer.ts`
+- `apps/web/lib/logging.ts`
+- `docs/PHASE_4_LOG_SANITIZATION_GUIDE.md`

@@ -1,18 +1,18 @@
 import { getAwsWorkflow } from "@/lib/workflow/aws"
-import { getWorkflowStore, LOCAL_OWNER_ID } from "@/lib/workflow/store"
-import { workflowJson } from "@/lib/workflow/http"
+import { getWorkflowStore } from "@/lib/workflow/store"
+import { authenticatedWorkflowJson } from "@/lib/workflow/http"
 import { isAwsWorkflowStore } from "@/lib/workflow/store"
 
 export async function POST(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ videoId: string }> }
 ) {
   const { videoId } = await params
 
-  return workflowJson(async () => {
+  return authenticatedWorkflowJson(request, async (creator) => {
     if (isAwsWorkflowStore()) {
       const { dynamo, getProcessingQueue } = getAwsWorkflow()
-      const queued = await dynamo.queueProcessing(videoId, LOCAL_OWNER_ID)
+      const queued = await dynamo.queueProcessing(videoId, creator.ownerId)
 
       await getProcessingQueue().sendProcessingJob({
         messageType: "PROCESS_VIDEO",
@@ -26,6 +26,6 @@ export async function POST(
       return queued
     }
 
-    return getWorkflowStore().queueProcessing(videoId, LOCAL_OWNER_ID)
+    return getWorkflowStore().queueProcessing(videoId, creator.ownerId)
   })
 }

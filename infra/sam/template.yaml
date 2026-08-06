@@ -30,6 +30,14 @@ Parameters:
     Type: String
     Default: ""
     Description: Optional Lambda layer ARN that provides ffmpeg and ffprobe binaries.
+  CognitoCallbackUrls:
+    Type: CommaDelimitedList
+    Default: "http://localhost:3000/auth/callback"
+    Description: Allowed OAuth callback URLs for the StreamOps web app.
+  CognitoLogoutUrls:
+    Type: CommaDelimitedList
+    Default: "http://localhost:3000"
+    Description: Allowed OAuth logout URLs for the StreamOps web app.
 
 Conditions:
   HasFfmpegLayer: !Not [!Equals [!Ref FfmpegLayerArn, ""]]
@@ -120,6 +128,138 @@ Resources:
         deadLetterTargetArn: !GetAtt ProcessingDeadLetterQueue.Arn
         maxReceiveCount: !Ref ProcessingMaxReceiveCount
 
+  CreatorUserPool:
+    Type: AWS::Cognito::UserPool
+    Properties:
+      UserPoolName: !Sub "${ProjectName}-${EnvironmentName}-creators"
+      UsernameAttributes:
+        - email
+      AutoVerifiedAttributes:
+        - email
+      AccountRecoverySetting:
+        RecoveryMechanisms:
+          - Name: verified_email
+            Priority: 1
+      AdminCreateUserConfig:
+        AllowAdminCreateUserOnly: false
+      Policies:
+        PasswordPolicy:
+          MinimumLength: 12
+          RequireLowercase: true
+          RequireNumbers: true
+          RequireSymbols: false
+          RequireUppercase: true
+      Schema:
+        - Name: email
+          AttributeDataType: String
+          Mutable: true
+          Required: true
+
+  CreatorUserPoolClient:
+    Type: AWS::Cognito::UserPoolClient
+    Properties:
+      UserPoolId: !Ref CreatorUserPool
+      ClientName: !Sub "${ProjectName}-${EnvironmentName}-web"
+      GenerateSecret: false
+      PreventUserExistenceErrors: ENABLED
+      ExplicitAuthFlows:
+        - ALLOW_REFRESH_TOKEN_AUTH
+        - ALLOW_USER_SRP_AUTH
+      SupportedIdentityProviders:
+        - COGNITO
+      AllowedOAuthFlowsUserPoolClient: true
+      AllowedOAuthFlows:
+        - code
+      AllowedOAuthScopes:
+        - email
+        - openid
+        - profile
+      CallbackURLs: !Ref CognitoCallbackUrls
+      LogoutURLs: !Ref CognitoLogoutUrls
+      AccessTokenValidity: 60
+      IdTokenValidity: 60
+      RefreshTokenValidity: 30
+      TokenValidityUnits:
+        AccessToken: minutes
+        IdToken: minutes
+        RefreshToken: days
+
+  CreatorUserPoolDomain:
+    Type: AWS::Cognito::UserPoolDomain
+    Properties:
+      Domain: !Sub "${ProjectName}-${EnvironmentName}-${AWS::AccountId}"
+      UserPoolId: !Ref CreatorUserPool
+
+  RuntimeConfigAwsRegion:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${ProjectName}/${EnvironmentName}/aws-region"
+      Type: String
+      Value: !Ref AWS::Region
+
+  RuntimeConfigWorkflowStore:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${ProjectName}/${EnvironmentName}/workflow-store"
+      Type: String
+      Value: aws
+
+  RuntimeConfigTableName:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${ProjectName}/${EnvironmentName}/table-name"
+      Type: String
+      Value: !Ref WorkflowTable
+
+  RuntimeConfigSourceBucket:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${ProjectName}/${EnvironmentName}/source-bucket"
+      Type: String
+      Value: !Ref SourceBucket
+
+  RuntimeConfigProcessingQueueUrl:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${ProjectName}/${EnvironmentName}/processing-queue-url"
+      Type: String
+      Value: !Ref ProcessingQueue
+
+  RuntimeConfigProcessingDlqUrl:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${ProjectName}/${EnvironmentName}/processing-dlq-url"
+      Type: String
+      Value: !Ref ProcessingDeadLetterQueue
+
+  RuntimeConfigCognitoUserPoolId:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${ProjectName}/${EnvironmentName}/cognito-user-pool-id"
+      Type: String
+      Value: !Ref CreatorUserPool
+
+  RuntimeConfigCognitoClientId:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${ProjectName}/${EnvironmentName}/cognito-client-id"
+      Type: String
+      Value: !Ref CreatorUserPoolClient
+
+  RuntimeConfigCognitoIssuer:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${ProjectName}/${EnvironmentName}/cognito-issuer"
+      Type: String
+      Value: !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${CreatorUserPool}"
+
+  RuntimeConfigCognitoDomain:
+    Type: AWS::SSM::Parameter
+    Properties:
+      Name: !Sub "/${ProjectName}/${EnvironmentName}/cognito-domain"
+      Type: String
+      Value: !Sub "https://${CreatorUserPoolDomain}.auth.${AWS::Region}.amazoncognito.com"
+
   WorkerFunction:
     Type: AWS::Serverless::Function
     Properties:
@@ -135,6 +275,7 @@ Resources:
         - !Ref AWS::NoValue
       Environment:
         Variables:
+          STREAMOPS_ENVIRONMENT: !Ref EnvironmentName
           STREAMOPS_TABLE_NAME: !Ref WorkflowTable
           STREAMOPS_SOURCE_BUCKET: !Ref SourceBucket
           STREAMOPS_PROCESSING_QUEUE_URL: !Ref ProcessingQueue
@@ -156,7 +297,6 @@ Resources:
                 - dynamodb:Query
                 - dynamodb:PutItem
                 - dynamodb:UpdateItem
-                - dynamodb:TransactWriteItems
               Resource: !GetAtt WorkflowTable.Arn
             - Sid: SourceVideoRead
               Effect: Allow
@@ -194,3 +334,18 @@ Outputs:
   WorkerFunctionName:
     Description: Worker Lambda function name.
     Value: !Ref WorkerFunction
+  CognitoUserPoolId:
+    Description: Cognito User Pool ID for creator authentication.
+    Value: !Ref CreatorUserPool
+  CognitoUserPoolClientId:
+    Description: Cognito User Pool App Client ID for the web app.
+    Value: !Ref CreatorUserPoolClient
+  CognitoIssuer:
+    Description: JWT issuer URL for the creator User Pool.
+    Value: !Sub "https://cognito-idp.${AWS::Region}.amazonaws.com/${CreatorUserPool}"
+  CognitoDomain:
+    Description: Cognito hosted UI domain for OAuth sign-in.
+    Value: !Sub "https://${CreatorUserPoolDomain}.auth.${AWS::Region}.amazoncognito.com"
+  RuntimeConfigPath:
+    Description: SSM Parameter Store path for StreamOps runtime config.
+    Value: !Sub "/${ProjectName}/${EnvironmentName}"

@@ -1,4 +1,5 @@
 export * from "./errors"
+export * from "./log-sanitizer"
 export * from "./memory-store"
 export * from "./transitions"
 export * from "./types"

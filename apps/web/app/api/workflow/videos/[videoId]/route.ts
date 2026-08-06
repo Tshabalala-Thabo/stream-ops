@@ -1,23 +1,23 @@
 import { getAwsWorkflow } from "@/lib/workflow/aws"
-import { getWorkflowStore, LOCAL_OWNER_ID } from "@/lib/workflow/store"
-import { workflowJson } from "@/lib/workflow/http"
+import { getWorkflowStore } from "@/lib/workflow/store"
+import { authenticatedWorkflowJson } from "@/lib/workflow/http"
 import { isAwsWorkflowStore } from "@/lib/workflow/store"
 import type { Video, VideoRendition } from "@/lib/types"
 
 export async function GET(
-  _request: Request,
+  request: Request,
   { params }: { params: Promise<{ videoId: string }> }
 ) {
   const { videoId } = await params
 
-  return workflowJson(async () => {
+  return authenticatedWorkflowJson(request, async (creator) => {
     if (isAwsWorkflowStore()) {
       const { dynamo, s3Uploads } = getAwsWorkflow()
       const [video, uploadSessions, processingRuns, renditions] = await Promise.all([
-        dynamo.getVideo(videoId, LOCAL_OWNER_ID),
-        dynamo.listUploadSessionsForVideo(videoId, LOCAL_OWNER_ID),
-        dynamo.listProcessingRuns(videoId, LOCAL_OWNER_ID),
-        dynamo.listRenditions(videoId, LOCAL_OWNER_ID),
+        dynamo.getVideo(videoId, creator.ownerId),
+        dynamo.listUploadSessionsForVideo(videoId, creator.ownerId),
+        dynamo.listProcessingRuns(videoId, creator.ownerId),
+        dynamo.listRenditions(videoId, creator.ownerId),
       ])
 
       return {
@@ -32,12 +32,12 @@ export async function GET(
     const store = getWorkflowStore()
 
     return {
-      video: store.getVideo(videoId, LOCAL_OWNER_ID),
+      video: store.getVideo(videoId, creator.ownerId),
       uploadSessions: store
-        .listUploadSessions(LOCAL_OWNER_ID)
+        .listUploadSessions(creator.ownerId)
         .filter((session) => session.videoId === videoId),
-      processingRuns: store.listProcessingRuns(videoId, LOCAL_OWNER_ID),
-      renditions: store.listRenditions(videoId, LOCAL_OWNER_ID),
+      processingRuns: store.listProcessingRuns(videoId, creator.ownerId),
+      renditions: store.listRenditions(videoId, creator.ownerId),
       assetAccess: null,
     }
   })
